@@ -5,7 +5,7 @@ My main change was splitting the original network at some point and making a sha
 
 # where to add GANS:
 - I put in fake 'generator' code that makes random tensors. Anywhere in meta_gan.py that it says x_gen, that is where you would put the generator.
-- My 'discriminator' is the discrim_net in meta_gan.py designed in discriminator_config in miniimagenet_gan_train.py which you may want to look at, I based where I used it somewhat off https://github.com/eriklindernoren/PyTorch-GAN/blob/master/implementations/cgan/cgan.py
+- My 'discriminator' is the discrim_net in meta_gan.py designed in discriminator_config in miniimagenet_gan_train.py is not conditional right now so I think you'd need to alter it. I tried to make how I call discrim_net look kind of like https://github.com/eriklindernoren/PyTorch-GAN/blob/master/implementations/cgan/cgan.py
 
 
 
