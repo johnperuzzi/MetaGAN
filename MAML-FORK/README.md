@@ -1,7 +1,11 @@
 # Multi-task Additions:
-Their original functions are miniimagenet_train.py which calls meta.py
-My versions are called miniimagenet_gan_train.py which calls meta_gan.py
-The majority of my changes are in meta_gan.py
+- Their original functions are miniimagenet_train.py which calls meta.py. Look here if you want to understand how the vanilla model works since mine is based exactly on it
+- My versions are called miniimagenet_gan_train.py which calls meta_gan.py
+My main change was splitting the weights at some point and making a shared network, a nway network, and a discriminator network, and then changing the losses accordingly. 
+
+# where to add GANS:
+- I put in fake 'generator' code that makes random tensors. Anywhere in meta_gan.py that it says x_gen, that is where you would put the generator.
+- My 'discriminator' code you may want to look at, I based it somewhat off https://github.com/eriklindernoren/PyTorch-GAN/blob/master/implementations/cgan/cgan.py
 
 
 
