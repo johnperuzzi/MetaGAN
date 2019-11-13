@@ -1,3 +1,8 @@
+#### note: 
+- you'll need to download the images if you want to use them. 
+- Also I changed 'cuda' to 'cpu' in      device = torch.device('cpu') in **miniimagenet_train.py** and **miniimagenet_gan_train.py**, so you'll need to change those back on gpu
+- 
+
 # JC's Multi-task Additions:
 - Their original functions are **miniimagenet_train.py** which calls **meta.py**. Look here if you want to understand how the vanilla model works since mine is based exactly on it. I'd read this first cause mine follows the exact same structure with a lot of extra stuff
 - My versions are called **miniimagenet_gan_train.py** which calls **meta_gan.py**
@@ -5,8 +10,7 @@ My main change was splitting the original network at some point and making a sha
 
 # where to add GANS:
 - I put in fake 'generator' code that makes random tensors. Anywhere in **meta_gan.py** that it says **x_gen**, that is what you'd replace with the generator.
-- My 'discriminator' is the discrim_net in meta_gan.py designed in discriminator_config in miniimagenet_gan_train.py is not conditional right now so I think you'd need to alter it. I tried to make how I call discrim_net look kind of like https://github.com/eriklindernoren/PyTorch-GAN/blob/master/implementations/cgan/cgan.py
-
+- My 'discriminator' is the discrim_net in meta_gan.py designed in discriminator_config in miniimagenet_gan_train.py is not conditional right now so I think you'd need to alter it. I tried to make how I call discrim_net look kind of like https://github.com/eriklindernoren/PyTorch-GAN/blob/master/implementations/cgan/cgan.py.  Depending on if you leave my 'valid' and 'fake' tensors, on gpu you need to change this torch.FloatTensor to torch.cuda.FloatTensor in **meta_gan.py**
 
 
 #  MAML-Pytorch
