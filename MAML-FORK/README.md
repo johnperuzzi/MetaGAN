@@ -1,3 +1,10 @@
+# Multi-task Additions:
+Their original functions are miniimagenet_train.py which calls meta.py
+My versions are called miniimagenet_gan_train.py which calls meta_gan.py
+The majority of my changes are in meta_gan.py
+
+
+
 #  MAML-Pytorch
 PyTorch implementation of the supervised learning experiments from the paper:
 [Model-Agnostic Meta-Learning (MAML)](https://arxiv.org/abs/1703.03400).
