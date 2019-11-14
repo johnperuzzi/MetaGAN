@@ -88,7 +88,8 @@ class MetaGAN(nn.Module):
 
         for i in range(task_num):
             # 0. fake gen examples
-            x_gen, y_gen = torch.rand_like(x_spt[i]), y_spt[i]
+            x_gen = torch.rand_like(x_spt[i])
+            y_gen = y_spt[i]
 
             # 1. run the i-th task and compute loss for k=0
 
@@ -137,7 +138,7 @@ class MetaGAN(nn.Module):
                 
                 q_shared_layer = self.shared_net(x_qry[i], self.shared_net.parameters(), bn_training=True)
                 q_class_logits = self.nway_net(q_shared_layer, self.nway_net.parameters(), bn_training=True)
-                gen_valid_preds = self.discrim_net(q_shared_layer, self.discrim_net.parameters(), bn_training=True)
+                # unnecesary computeation # gen_valid_preds = self.discrim_net(q_shared_layer, self.discrim_net.parameters(), bn_training=True)
                 # print(x_qry.shape)
                 # print(y_qry.shape)
                 # print(y_qry[i].shape)
@@ -155,7 +156,7 @@ class MetaGAN(nn.Module):
 
                 q_shared_layer = self.shared_net(x_qry[i], fast_s_weights, bn_training=True)
                 q_class_logits = self.nway_net(q_shared_layer, fast_n_weights, bn_training=True)
-                gen_valid_preds = self.discrim_net(q_shared_layer, fast_d_weights, bn_training=True)
+                # gen_valid_preds = self.discrim_net(q_shared_layer, fast_d_weights, bn_training=True)
 
                 loss_q = F.cross_entropy(q_class_logits, y_qry[i])
                 losses_q[1] += loss_q
@@ -166,7 +167,8 @@ class MetaGAN(nn.Module):
 
             for k in range(1, self.update_step):
                 # 0. generate images for each class
-                x_gen, y_gen = torch.rand_like(x_spt[i]), y_spt[i]
+                x_gen = torch.rand_like(x_spt[i])
+                y_gen = y_spt[i]
 
                 FloatTensor = torch.FloatTensor #  torch.cuda.FloatTensor if cuda else 
                 valid = Variable(FloatTensor(setsz, 1).fill_(1.0), requires_grad=False)
@@ -192,7 +194,7 @@ class MetaGAN(nn.Module):
                 nway_loss = gen_nway_loss + real_nway_loss
                 valid_loss = gen_valid_loss + real_valid_loss
 
-                shared_loss = nway_loss + valid_loss
+                shared_loss = (nway_loss + valid_loss) / 2
 
 
 
@@ -209,7 +211,7 @@ class MetaGAN(nn.Module):
 
 
 
-
+                # only compute class loss, not real/fake loss
                 q_shared_layer = self.shared_net(x_qry[i], fast_s_weights, bn_training=True)
                 q_class_logits = self.nway_net(q_shared_layer, fast_n_weights, bn_training=True)
 
