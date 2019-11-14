@@ -108,14 +108,16 @@ class MetaGAN(nn.Module):
 
             # run discriminator on generated data
             gen_shared_layer = self.shared_net(x_gen, vars=None, bn_training=True)
-            gen_class_logits = self.nway_net(gen_shared_layer, vars=None, bn_training=True)
+            # REMOVE class loss from generator for now
+            #gen_class_logits = self.nway_net(gen_shared_layer, vars=None, bn_training=True)
             gen_valid_preds = self.discrim_net(gen_shared_layer, vars=None, bn_training=True)
 
-            gen_nway_loss = F.cross_entropy(gen_class_logits, y_spt[i]) #real_nway_loss 
+            #gen_nway_loss = F.cross_entropy(gen_class_logits, y_spt[i]) #real_nway_loss 
             gen_valid_loss = F.mse_loss(gen_valid_preds, fake)
 
 
-            nway_loss = (gen_nway_loss + real_nway_loss) / 2
+            # nway_loss = (gen_nway_loss + real_nway_loss) / 2
+            nway_loss = real_nway_loss
             valid_loss = (gen_valid_loss + real_valid_loss) / 2
 
             shared_loss = nway_loss + valid_loss
@@ -185,16 +187,17 @@ class MetaGAN(nn.Module):
 
                 # run discriminator on generated data
                 gen_shared_layer = self.shared_net(x_gen, fast_s_weights, bn_training=True)
-                gen_class_logits = self.nway_net(gen_shared_layer, fast_n_weights, bn_training=True)
+                # gen_class_logits = self.nway_net(gen_shared_layer, fast_n_weights, bn_training=True)
                 gen_valid_preds = self.discrim_net(gen_shared_layer, fast_d_weights, bn_training=True)
 
-                gen_nway_loss = F.cross_entropy(gen_class_logits, y_spt[i]) # real_nway_loss#
+                #gen_nway_loss = F.cross_entropy(gen_class_logits, y_spt[i]) # real_nway_loss#
                 gen_valid_loss = F.mse_loss(gen_valid_preds, fake)
 
-                nway_loss = gen_nway_loss + real_nway_loss
-                valid_loss = gen_valid_loss + real_valid_loss
+                #nway_loss = (gen_nway_loss + real_nway_loss) / 2
+                nway_loss = real_nway_loss
+                valid_loss = (gen_valid_loss + real_valid_loss) / 2
 
-                shared_loss = (nway_loss + valid_loss) / 2
+                shared_loss = nway_loss + valid_loss
 
 
 
@@ -294,14 +297,15 @@ class MetaGAN(nn.Module):
 
         # run discriminator on generated data
         gen_shared_layer = shared_net(x_gen)
-        gen_class_logits = nway_net(gen_shared_layer)
+        # gen_class_logits = nway_net(gen_shared_layer)
         gen_valid_preds = discrim_net(gen_shared_layer)
 
-        gen_nway_loss = F.cross_entropy(gen_class_logits, y_spt) #real_nway_loss
+        # gen_nway_loss = F.cross_entropy(gen_class_logits, y_spt) #real_nway_loss
         gen_valid_loss = F.mse_loss(gen_valid_preds, fake)
 
-        nway_loss = gen_nway_loss + real_nway_loss
-        valid_loss = gen_valid_loss + real_valid_loss
+        # nway_loss = (gen_nway_loss + real_nway_loss) / 2
+        nway_loss = real_nway_loss
+        valid_loss = (gen_valid_loss + real_valid_loss) / 2
 
         shared_loss = nway_loss + valid_loss
 
@@ -374,14 +378,15 @@ class MetaGAN(nn.Module):
             real_valid_loss = F.mse_loss(real_valid_preds, valid)
             # run discriminator on generated data
             gen_shared_layer = shared_net(x_gen, fast_s_weights, bn_training=True)
-            gen_class_logits = nway_net(gen_shared_layer, fast_n_weights, bn_training=True)
+            # gen_class_logits = nway_net(gen_shared_layer, fast_n_weights, bn_training=True)
             gen_valid_preds = discrim_net(gen_shared_layer, fast_d_weights, bn_training=True)
 
-            gen_nway_loss = F.cross_entropy(gen_class_logits, y_spt) # real_nway_loss#
+            # gen_nway_loss = F.cross_entropy(gen_class_logits, y_spt) # real_nway_loss#
             gen_valid_loss = F.mse_loss(gen_valid_preds, fake)
 
-            nway_loss = gen_nway_loss + real_nway_loss
-            valid_loss = gen_valid_loss + real_valid_loss
+            # nway_loss = (gen_nway_loss + real_nway_loss) / 2
+            nway_loss = real_nway_loss
+            valid_loss = (gen_valid_loss + real_valid_loss) / 2
 
             shared_loss = nway_loss + valid_loss
 
