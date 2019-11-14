@@ -121,9 +121,10 @@ class MetaGAN(nn.Module):
 
 
             # 2. compute grad on theta_pi
-            s_grad = torch.autograd.grad(shared_loss, self.shared_net.parameters(), retain_graph=True)
+            
             n_grad = torch.autograd.grad(nway_loss, self.nway_net.parameters(), retain_graph=True)
-            d_grad = torch.autograd.grad(valid_loss, self.discrim_net.parameters())
+            d_grad = torch.autograd.grad(valid_loss, self.discrim_net.parameters(), retain_graph=True)
+            s_grad = torch.autograd.grad(shared_loss, self.shared_net.parameters())
 
 
             fast_s_weights = list(map(lambda p: p[1] - self.update_lr * p[0], zip(s_grad, self.shared_net.parameters())))
@@ -196,9 +197,10 @@ class MetaGAN(nn.Module):
 
 
                 # 2. compute grad on theta_pi
-                s_grad = torch.autograd.grad(shared_loss, fast_s_weights, retain_graph=True)
+                
                 n_grad = torch.autograd.grad(nway_loss, fast_n_weights, retain_graph=True)
-                d_grad = torch.autograd.grad(valid_loss, fast_d_weights)
+                d_grad = torch.autograd.grad(valid_loss, fast_d_weights, retain_graph=True)
+                s_grad = torch.autograd.grad(shared_loss, fast_s_weights)
 
                 # 3. theta_pi = theta_pi - train_lr * grad
                 fast_s_weights = list(map(lambda p: p[1] - self.update_lr * p[0], zip(s_grad, fast_s_weights)))
@@ -301,9 +303,10 @@ class MetaGAN(nn.Module):
 
         shared_loss = nway_loss + valid_loss
 
-        s_grad = torch.autograd.grad(shared_loss, shared_net.parameters(), retain_graph=True)
+        
         n_grad = torch.autograd.grad(nway_loss, nway_net.parameters(), retain_graph=True)
-        d_grad = torch.autograd.grad(valid_loss, discrim_net.parameters())
+        d_grad = torch.autograd.grad(valid_loss, discrim_net.parameters(), retain_graph=True)
+        s_grad = torch.autograd.grad(shared_loss, shared_net.parameters())
 
 
         fast_s_weights = list(map(lambda p: p[1] - self.update_lr * p[0], zip(s_grad, shared_net.parameters())))
@@ -380,9 +383,10 @@ class MetaGAN(nn.Module):
 
             shared_loss = nway_loss + valid_loss
 
-            s_grad = torch.autograd.grad(shared_loss, fast_s_weights, retain_graph=True)
+            
             n_grad = torch.autograd.grad(nway_loss, fast_n_weights, retain_graph=True)
-            d_grad = torch.autograd.grad(valid_loss, fast_d_weights)
+            d_grad = torch.autograd.grad(valid_loss, fast_d_weights, retain_graph=True)
+            s_grad = torch.autograd.grad(shared_loss, fast_s_weights)
 
 
             fast_s_weights = list(map(lambda p: p[1] - self.update_lr * p[0], zip(s_grad,  fast_s_weights)))
