@@ -56,7 +56,8 @@ def main():
         ('bn', [32]),
         ('max_pool2d', [2, 1, 0]),
         ('flatten', []),
-        ('linear', [1, 32 * 5 * 5])
+        ('linear', [1, 32 * 5 * 5]),
+        ('sigmoid', [True])
     ]
 
     # device = torch.device('cuda')

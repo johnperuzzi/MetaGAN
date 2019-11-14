@@ -37,9 +37,11 @@ class MetaGAN(nn.Module):
         self.nway_net = Learner(nway_config, args.imgc, args.imgsz)
         self.discrim_net = Learner(discriminator_config, args.imgc, args.imgsz)
 
-        self.meta_shared_optim = optim.Adam(self.shared_net.parameters(), lr=self.meta_lr)
-        self.meta_nway_optim = optim.Adam(self.nway_net.parameters(), lr=self.meta_lr)
-        self.meta_discrim_optim = optim.Adam(self.discrim_net.parameters(), lr=self.meta_lr)
+        params = list(self.shared_net.parameters()) + list(self.nway_net.parameters()) + list(self.discrim_net.parameters())
+        self.meta_optim = optim.Adam(params, lr=self.meta_lr)
+        # self.meta_shared_optim = optim.Adam(self.shared_net.parameters(), lr=self.meta_lr)
+        # self.meta_nway_optim = optim.Adam(self.nway_net.parameters(), lr=self.meta_lr)
+        # self.meta_discrim_optim = optim.Adam(self.discrim_net.parameters(), lr=self.meta_lr)
 
 
 
@@ -99,6 +101,7 @@ class MetaGAN(nn.Module):
             real_class_logits = self.nway_net(real_shared_layer, vars=None, bn_training=True)
             real_valid_preds = self.discrim_net(real_shared_layer, vars=None, bn_training=True)
 
+
             real_nway_loss = F.cross_entropy(real_class_logits, y_spt[i])
             real_valid_loss = F.mse_loss(real_valid_preds, valid)
 
@@ -107,13 +110,9 @@ class MetaGAN(nn.Module):
             gen_class_logits = self.nway_net(gen_shared_layer, vars=None, bn_training=True)
             gen_valid_preds = self.discrim_net(gen_shared_layer, vars=None, bn_training=True)
 
-            # print(x_spt.shape)
-            # print(y_spt.shape)
-            # print(y_spt[i].shape)
-            # print(gen_class_logits.shape)
-
-            gen_nway_loss = F.cross_entropy(gen_class_logits, y_spt[i])
+            gen_nway_loss = F.cross_entropy(gen_class_logits, y_spt[i]) #real_nway_loss 
             gen_valid_loss = F.mse_loss(gen_valid_preds, fake)
+
 
             nway_loss = gen_nway_loss + real_nway_loss
             valid_loss = gen_valid_loss + real_valid_loss
@@ -186,7 +185,7 @@ class MetaGAN(nn.Module):
                 gen_class_logits = self.nway_net(gen_shared_layer, fast_n_weights, bn_training=True)
                 gen_valid_preds = self.discrim_net(gen_shared_layer, fast_d_weights, bn_training=True)
 
-                gen_nway_loss = F.cross_entropy(gen_class_logits, y_spt[i])
+                gen_nway_loss = F.cross_entropy(gen_class_logits, y_spt[i]) # real_nway_loss#
                 gen_valid_loss = F.mse_loss(gen_valid_preds, fake)
 
                 nway_loss = gen_nway_loss + real_nway_loss
@@ -229,17 +228,19 @@ class MetaGAN(nn.Module):
 
 
         # optimize theta parameters
-        self.meta_shared_optim.zero_grad()
-        self.meta_nway_optim.zero_grad()
-        self.meta_discrim_optim.zero_grad()
+        self.meta_optim.zero_grad()
+        # self.meta_shared_optim.zero_grad()
+        # self.meta_nway_optim.zero_grad()
+        # self.meta_discrim_optim.zero_grad()
 
         loss_q.backward()
         # print('meta update')
         # for p in self.net.parameters()[:5]:
         # 	print(torch.norm(p).item())
-        self.meta_shared_optim.step()
-        self.meta_nway_optim.step()
-        self.meta_discrim_optim.step()
+        self.meta_optim.step()
+        # self.meta_shared_optim.step()
+        # self.meta_nway_optim.step()
+        # self.meta_discrim_optim.step()
 
 
         accs = np.array(corrects) / (querysz * task_num)
@@ -292,7 +293,7 @@ class MetaGAN(nn.Module):
         gen_class_logits = nway_net(gen_shared_layer)
         gen_valid_preds = discrim_net(gen_shared_layer)
 
-        gen_nway_loss = F.cross_entropy(gen_class_logits, y_spt)
+        gen_nway_loss = F.cross_entropy(gen_class_logits, y_spt) #real_nway_loss
         gen_valid_loss = F.mse_loss(gen_valid_preds, fake)
 
         nway_loss = gen_nway_loss + real_nway_loss
@@ -371,7 +372,7 @@ class MetaGAN(nn.Module):
             gen_class_logits = nway_net(gen_shared_layer, fast_n_weights, bn_training=True)
             gen_valid_preds = discrim_net(gen_shared_layer, fast_d_weights, bn_training=True)
 
-            gen_nway_loss = F.cross_entropy(gen_class_logits, y_spt)
+            gen_nway_loss = F.cross_entropy(gen_class_logits, y_spt) # real_nway_loss#
             gen_valid_loss = F.mse_loss(gen_valid_preds, fake)
 
             nway_loss = gen_nway_loss + real_nway_loss
@@ -384,9 +385,9 @@ class MetaGAN(nn.Module):
             d_grad = torch.autograd.grad(valid_loss, fast_d_weights)
 
 
-            fast_s_weights = list(map(lambda p: p[1] - self.update_lr * p[0], zip(s_grad, shared_net.parameters())))
-            fast_n_weights = list(map(lambda p: p[1] - self.update_lr * p[0], zip(n_grad, nway_net.parameters())))
-            fast_d_weights = list(map(lambda p: p[1] - self.update_lr * p[0], zip(d_grad, discrim_net.parameters())))
+            fast_s_weights = list(map(lambda p: p[1] - self.update_lr * p[0], zip(s_grad,  fast_s_weights)))
+            fast_n_weights = list(map(lambda p: p[1] - self.update_lr * p[0], zip(n_grad, fast_n_weights)))
+            fast_d_weights = list(map(lambda p: p[1] - self.update_lr * p[0], zip(d_grad, fast_d_weights)))
 
 
 
