@@ -114,8 +114,8 @@ class MetaGAN(nn.Module):
             gen_valid_loss = F.mse_loss(gen_valid_preds, fake)
 
 
-            nway_loss = gen_nway_loss + real_nway_loss
-            valid_loss = gen_valid_loss + real_valid_loss
+            nway_loss = (gen_nway_loss + real_nway_loss) / 2
+            valid_loss = (gen_valid_loss + real_valid_loss) / 2
 
             shared_loss = nway_loss + valid_loss
 
