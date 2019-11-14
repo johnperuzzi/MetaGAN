@@ -3,7 +3,7 @@ import  numpy as np
 from    omniglotNShot import OmniglotNShot
 import  argparse
 
-from    meta import Meta
+from    meta_gan import MetaGAN
 
 def main(args):
 
@@ -13,7 +13,8 @@ def main(args):
 
     print(args)
 
-    config = [
+
+    shared_config = [
         ('conv2d', [64, 1, 3, 3, 2, 0]),
         ('relu', [True]),
         ('bn', [64]),
@@ -23,6 +24,9 @@ def main(args):
         ('conv2d', [64, 64, 3, 3, 2, 0]),
         ('relu', [True]),
         ('bn', [64]),
+    ]
+
+    nway_config = [
         ('conv2d', [64, 64, 2, 2, 1, 0]),
         ('relu', [True]),
         ('bn', [64]),
@@ -30,12 +34,23 @@ def main(args):
         ('linear', [args.n_way, 64])
     ]
 
-    device = torch.device('cuda')
-    maml = Meta(args, config).to(device)
+    discriminator_config = [
+        ('conv2d', [64, 64, 2, 2, 1, 0]),
+        ('relu', [True]),
+        ('bn', [64]),
+        ('flatten', []),
+        ('linear', [1, 64]),
+        ('sigmoid', [True])
+    ]
 
-    tmp = filter(lambda x: x.requires_grad, maml.parameters())
+    # device = torch.device('cuda')
+    device = torch.device('cpu')
+    mamlGAN = MetaGAN(args, shared_config, nway_config, discriminator_config).to(device)
+
+
+    tmp = filter(lambda x: x.requires_grad, mamlGAN.parameters())
     num = sum(map(lambda x: np.prod(x.shape), tmp))
-    print(maml)
+    print(mamlGAN)
     print('Total trainable tensors:', num)
 
     db_train = OmniglotNShot('omniglot',
@@ -52,7 +67,7 @@ def main(args):
                                      torch.from_numpy(x_qry).to(device), torch.from_numpy(y_qry).to(device)
 
         # set traning=True to update running_mean, running_variance, bn_weights, bn_bias
-        accs = maml(x_spt, y_spt, x_qry, y_qry)
+        accs = mamlGAN(x_spt, y_spt, x_qry, y_qry)
 
         if step % 50 == 0:
             print('step:', step, '\ttraining acc:', accs)
@@ -67,7 +82,7 @@ def main(args):
 
                 # split to single task each time
                 for x_spt_one, y_spt_one, x_qry_one, y_qry_one in zip(x_spt, y_spt, x_qry, y_qry):
-                    test_acc = maml.finetunning(x_spt_one, y_spt_one, x_qry_one, y_qry_one)
+                    test_acc = mamlGAN.finetunning(x_spt_one, y_spt_one, x_qry_one, y_qry_one)
                     accs.append( test_acc )
 
             # [b, update_step+1]
