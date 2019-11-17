@@ -1,6 +1,6 @@
 #### note: 
 - you'll need to download the images if you want to use them. 
-- Also I changed 'cuda' to 'cpu' in      device = torch.device('cpu') in **miniimagenet_train.py** and **miniimagenet_gan_train.py**, so you'll need to change those back on gpu
+- Also I changed 'cuda' to 'cpu' in  ***device = torch.device('cpu')*** in **miniimagenet_train.py** and **miniimagenet_gan_train.py**, so you'll need to change those back on gpu. Also, in **meta_gan.py** You should change ***FloatTensor = torch.FloatTensor*** to ***torch.cuda.FloatTensor*** for GPUS
 - 
 
 # JC's Multi-task Additions:
