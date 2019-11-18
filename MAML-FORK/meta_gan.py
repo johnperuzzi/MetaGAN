@@ -28,14 +28,15 @@ class MetaGAN(nn.Module):
         self.n_way = args.n_way
         self.k_spt = args.k_spt
         self.k_qry = args.k_qry
-        self.task_num = args.task_num
-        self.update_step = args.update_step
-        self.update_step_test = args.update_step_test
+        self.tasks_per_batch = args.tasks_per_batch
+        self.update_steps = args.update_steps
+        self.update_steps_test = args.update_steps_test
 
+        # self.generator = Generator(gen_config, args.img_c, args.img_sz, args)
 
-        self.shared_net = Learner(shared_config, args.imgc, args.imgsz)
-        self.nway_net = Learner(nway_config, args.imgc, args.imgsz)
-        self.discrim_net = Learner(discriminator_config, args.imgc, args.imgsz)
+        self.shared_net = Learner(shared_config, args.img_c, args.img_sz)
+        self.nway_net = Learner(nway_config, args.img_c, args.img_sz)
+        self.discrim_net = Learner(discriminator_config, args.img_c, args.img_sz)
 
         params = list(self.shared_net.parameters()) + list(self.nway_net.parameters()) + list(self.discrim_net.parameters())
         self.meta_optim = optim.Adam(params, lr=self.meta_lr)
@@ -69,188 +70,144 @@ class MetaGAN(nn.Module):
 
         return total_norm/counter
 
+    def pred(self, x, weights=[None, None, None], nets=None, discrim=True):
+        if type(nets) == type(None):
+            nets = [self.shared_net, self.nway_net, self.discrim_net]
 
-    def forward(self, x_spt, y_spt, x_qry, y_qry):
-        """
+        shared_weights, nway_weights, discrim_weights = weights
+        shared_net, nway_net, discrim_net = nets
 
-        :param x_spt:   [b, setsz, c_, h, w]
-        :param y_spt:   [b, setsz]
-        :param x_qry:   [b, querysz, c_, h, w]
-        :param y_qry:   [b, querysz]
-        :return:
-        """
-        task_num, setsz, c_, h, w = x_spt.size()
-        querysz = x_qry.size(1)
+        shared_layer = shared_net(x, vars=shared_weights, bn_training=True)
+        class_logits = nway_net(shared_layer, vars=nway_weights, bn_training=True)
+        if not discrim:
+            return class_logits
 
-        losses_q = [0 for _ in range(self.update_step + 1)]  # losses_q[i] is the loss on step i
-        corrects = [0 for _ in range(self.update_step + 1)]
+        discrim_preds = discrim_net(shared_layer, vars=discrim_weights, bn_training=True)
+        return class_logits, discrim_preds
+
+    def loss(self, class_logits, y_class, discrim_preds=None, y_discrim=None):
+        nway_loss = F.cross_entropy(class_logits, y_class)
+
+        if type(discrim_preds) == type(None):
+            return nway_loss
+
+        discrim_loss = F.mse_loss(discrim_preds, y_discrim)
+        return nway_loss, discrim_loss
+
+    def update_weights(self, shared_loss, nway_loss, discrim_loss, weights):
+        shared_weights, nway_weights, discrim_weights = weights
+
+        n_grad = torch.autograd.grad(nway_loss, nway_weights, retain_graph=True)
+        n_weights = [w - self.update_lr * grad for grad, w in zip(n_grad, nway_weights)]
+
+        d_grad = torch.autograd.grad(discrim_loss, discrim_weights, retain_graph=True)
+        d_weights = [w - self.update_lr * grad for grad, w in zip(d_grad, discrim_weights)]
+
+        s_grad = torch.autograd.grad(shared_loss, shared_weights)
+        s_weights = [w - self.update_lr * grad for grad, w in zip(s_grad, shared_weights)]
+
+        return s_weights, n_weights, d_weights
+
+    def single_task_forward(self, x_spt, y_spt, x_qry, y_qry, nets=None):
+        support_sz, c_, h, w = x_spt.size()
+
+        corrects = np.zeros(self.update_steps + 1)
+        if type(nets) == type(None):
+            nets = (self.shared_net, self.nway_net, self.discrim_net)
+
+        # net_weights = [net.parameters() for net in nets]
+
+        # check if I need to copy these like this or can do as above
+        net_weights = []
+        for net in nets:
+            net_weights.append([w.clone() for w in net.parameters()])
+
+        cuda = False
+        FloatTensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor 
+
+        # this is the meta-test loss and accuracy before first update
+        with torch.no_grad():
+            q_class_logits = self.pred(x_qry, weights=[None, None, None], discrim=False)
+
+            pred_q = F.softmax(q_class_logits, dim=1).argmax(dim=1)
+            correct = torch.eq(pred_q, y_qry).sum().item()
+            corrects[0] += correct
 
 
-        for i in range(task_num):
-            # 0. fake gen examples
-            x_gen = torch.rand_like(x_spt[i])
-            y_gen = y_spt[i]
+        # 0. fake gen examples. uses same examples for all inner update steps
+        x_gen = torch.rand_like(x_spt)
+        y_gen = y_spt
 
-            # 1. run the i-th task and compute loss for k=0
+        valid = Variable(FloatTensor(support_sz, 1).fill_(1.0), requires_grad=True)
+        fake = Variable(FloatTensor(support_sz, 1).fill_(0.0), requires_grad=True)
 
-            FloatTensor = torch.FloatTensor #  torch.cuda.FloatTensor if cuda else 
-            valid = Variable(FloatTensor(setsz, 1).fill_(1.0), requires_grad=False)
-            fake = Variable(FloatTensor(setsz, 1).fill_(0.0), requires_grad=False)
+        # run the i-th task and compute loss for k-th inner update
+        for k in range(1, self.update_steps + 1):
 
             # run discriminator on real data
-            real_shared_layer = self.shared_net(x_spt[i], vars=None, bn_training=True)
-            real_class_logits = self.nway_net(real_shared_layer, vars=None, bn_training=True)
-            real_valid_preds = self.discrim_net(real_shared_layer, vars=None, bn_training=True)
-
-
-            real_nway_loss = F.cross_entropy(real_class_logits, y_spt[i])
-            real_valid_loss = F.mse_loss(real_valid_preds, valid)
+            real_class_logits, real_discrim_preds = self.pred(x_spt, weights=net_weights)
+            real_nway_loss, real_discrim_loss = self.loss(real_class_logits, y_spt, real_discrim_preds, valid)
 
             # run discriminator on generated data
-            gen_shared_layer = self.shared_net(x_gen, vars=None, bn_training=True)
-            # REMOVE class loss from generator for now
-            #gen_class_logits = self.nway_net(gen_shared_layer, vars=None, bn_training=True)
-            gen_valid_preds = self.discrim_net(gen_shared_layer, vars=None, bn_training=True)
-
-            #gen_nway_loss = F.cross_entropy(gen_class_logits, y_spt[i]) #real_nway_loss 
-            gen_valid_loss = F.mse_loss(gen_valid_preds, fake)
-
+            gen_class_logits, gen_discrim_preds = self.pred(x_gen, weights=net_weights)
+            gen_nway_loss, gen_discrim_loss = self.loss(gen_class_logits, y_gen, gen_discrim_preds, fake)
 
             # nway_loss = (gen_nway_loss + real_nway_loss) / 2
             nway_loss = real_nway_loss
-            valid_loss = (gen_valid_loss + real_valid_loss) / 2
+            # discrim_loss = (gen_discrim_loss + real_discrim_loss) / 2
+            discrim_loss = real_discrim_loss
 
-            shared_loss = nway_loss + valid_loss
 
+            shared_loss = nway_loss + discrim_loss
 
             # 2. compute grad on theta_pi
-            
-            n_grad = torch.autograd.grad(nway_loss, self.nway_net.parameters(), retain_graph=True)
-            d_grad = torch.autograd.grad(valid_loss, self.discrim_net.parameters(), retain_graph=True)
-            s_grad = torch.autograd.grad(shared_loss, self.shared_net.parameters())
+            net_weights = self.update_weights(shared_loss, nway_loss, discrim_loss, net_weights)
 
-
-            fast_s_weights = list(map(lambda p: p[1] - self.update_lr * p[0], zip(s_grad, self.shared_net.parameters())))
-            fast_n_weights = list(map(lambda p: p[1] - self.update_lr * p[0], zip(n_grad, self.nway_net.parameters())))
-            fast_d_weights = list(map(lambda p: p[1] - self.update_lr * p[0], zip(d_grad, self.discrim_net.parameters())))
-
-            # this is the loss and accuracy before first update
+            # meta-test accuracy
             with torch.no_grad():
-                # [setsz, nway]
-                
-                q_shared_layer = self.shared_net(x_qry[i], self.shared_net.parameters(), bn_training=True)
-                q_class_logits = self.nway_net(q_shared_layer, self.nway_net.parameters(), bn_training=True)
-                # unnecesary computeation # gen_valid_preds = self.discrim_net(q_shared_layer, self.discrim_net.parameters(), bn_training=True)
-                # print(x_qry.shape)
-                # print(y_qry.shape)
-                # print(y_qry[i].shape)
-                # print(q_class_logits.shape)
-                loss_q = F.cross_entropy(q_class_logits, y_qry[i])
-                losses_q[0] += loss_q
+                # [query_sz]
+                q_class_logits = self.pred(x_qry, weights=net_weights, discrim=False)
 
                 pred_q = F.softmax(q_class_logits, dim=1).argmax(dim=1)
-                correct = torch.eq(pred_q, y_qry[i]).sum().item()
-                corrects[0] = corrects[0] + correct
+                correct = torch.eq(pred_q, y_qry).sum().item()
+                corrects[k] += correct
 
-            # this is the loss and accuracy after the first update
-            with torch.no_grad():
-                # [setsz, nway]
+        # meta-test loss
+        q_class_logits = self.pred(x_qry, weights=net_weights, discrim=False)
+        loss_q = self.loss(q_class_logits, y_qry) # doesn't use discrim loss
 
-                q_shared_layer = self.shared_net(x_qry[i], fast_s_weights, bn_training=True)
-                q_class_logits = self.nway_net(q_shared_layer, fast_n_weights, bn_training=True)
-                # gen_valid_preds = self.discrim_net(q_shared_layer, fast_d_weights, bn_training=True)
-
-                loss_q = F.cross_entropy(q_class_logits, y_qry[i])
-                losses_q[1] += loss_q
-                # [setsz]
-                pred_q = F.softmax(q_class_logits, dim=1).argmax(dim=1)
-                correct = torch.eq(pred_q, y_qry[i]).sum().item()
-                corrects[1] = corrects[1] + correct
-
-            for k in range(1, self.update_step):
-                # 0. generate images for each class
-                x_gen = torch.rand_like(x_spt[i])
-                y_gen = y_spt[i]
-
-                FloatTensor = torch.FloatTensor #  torch.cuda.FloatTensor if cuda else 
-                valid = Variable(FloatTensor(setsz, 1).fill_(1.0), requires_grad=False)
-                fake = Variable(FloatTensor(setsz, 1).fill_(0.0), requires_grad=False)
+        return loss_q, corrects  
 
 
-                # run discriminator on real data
-                real_shared_layer = self.shared_net(x_spt[i], fast_s_weights, bn_training=True)
-                real_class_logits = self.nway_net(real_shared_layer, fast_n_weights, bn_training=True)
-                real_valid_preds = self.discrim_net(real_shared_layer, fast_d_weights, bn_training=True)
+    def forward(self, x_spt, y_spt, x_qry, y_qry):
+        """
+        :param x_spt:   [b, support_sz, c_, h, w]
+        :param y_spt:   [b, support_sz]
+        :param x_qry:   [b, query_sz, c_, h, w]
+        :param y_qry:   [b, query_sz]
+        :return:
+        """
+        tasks_per_batch, support_sz, c_, h, w = x_spt.size()
+        query_sz = x_qry.size(1)
 
-                real_nway_loss = F.cross_entropy(real_class_logits, y_spt[i])
-                real_valid_loss = F.mse_loss(real_valid_preds, valid)
-
-                # run discriminator on generated data
-                gen_shared_layer = self.shared_net(x_gen, fast_s_weights, bn_training=True)
-                # gen_class_logits = self.nway_net(gen_shared_layer, fast_n_weights, bn_training=True)
-                gen_valid_preds = self.discrim_net(gen_shared_layer, fast_d_weights, bn_training=True)
-
-                #gen_nway_loss = F.cross_entropy(gen_class_logits, y_spt[i]) # real_nway_loss#
-                gen_valid_loss = F.mse_loss(gen_valid_preds, fake)
-
-                #nway_loss = (gen_nway_loss + real_nway_loss) / 2
-                nway_loss = real_nway_loss
-                valid_loss = (gen_valid_loss + real_valid_loss) / 2
-
-                shared_loss = nway_loss + valid_loss
-
-
-
-                # 2. compute grad on theta_pi
-                
-                n_grad = torch.autograd.grad(nway_loss, fast_n_weights, retain_graph=True)
-                d_grad = torch.autograd.grad(valid_loss, fast_d_weights, retain_graph=True)
-                s_grad = torch.autograd.grad(shared_loss, fast_s_weights)
-
-                # 3. theta_pi = theta_pi - train_lr * grad
-                fast_s_weights = list(map(lambda p: p[1] - self.update_lr * p[0], zip(s_grad, fast_s_weights)))
-                fast_n_weights = list(map(lambda p: p[1] - self.update_lr * p[0], zip(n_grad, fast_n_weights)))
-                fast_d_weights = list(map(lambda p: p[1] - self.update_lr * p[0], zip(d_grad, fast_d_weights)))
-
-
-
-                # only compute class loss, not real/fake loss
-                q_shared_layer = self.shared_net(x_qry[i], fast_s_weights, bn_training=True)
-                q_class_logits = self.nway_net(q_shared_layer, fast_n_weights, bn_training=True)
-
-                # loss_q will be overwritten and just keep the loss_q on last update step.
-                loss_q = F.cross_entropy(q_class_logits, y_qry[i])
-                losses_q[k + 1] += loss_q
-
-                with torch.no_grad():
-                    pred_q = F.softmax(q_class_logits, dim=1).argmax(dim=1)
-                    correct = torch.eq(pred_q, y_qry[i]).sum().item()  # convert to numpy
-                    corrects[k + 1] = corrects[k + 1] + correct
-
-
+        loss_q = 0
+        corrects = np.zeros(self.update_steps + 1)
+        
+        for i in range(tasks_per_batch):
+            loss_q_tmp, corrects_tmp = self.single_task_forward(x_spt[i], y_spt[i], x_qry[i], y_qry[i])
+            loss_q += loss_q_tmp
+            corrects += corrects_tmp
 
         # end of all tasks
-        # sum over all losses on query set across all tasks
-        loss_q = losses_q[-1] / task_num
-
+        # sum over final losses on query set across all tasks
+        loss_q /= tasks_per_batch
 
         # optimize theta parameters
         self.meta_optim.zero_grad()
-        # self.meta_shared_optim.zero_grad()
-        # self.meta_nway_optim.zero_grad()
-        # self.meta_discrim_optim.zero_grad()
-
         loss_q.backward()
-        # print('meta update')
-        # for p in self.net.parameters()[:5]:
-        # 	print(torch.norm(p).item())
         self.meta_optim.step()
-        # self.meta_shared_optim.step()
-        # self.meta_nway_optim.step()
-        # self.meta_discrim_optim.step()
 
-
-        accs = np.array(corrects) / (querysz * task_num)
+        accs = corrects / (query_sz * tasks_per_batch)
 
         return accs
 
@@ -258,173 +215,36 @@ class MetaGAN(nn.Module):
     def finetunning(self, x_spt, y_spt, x_qry, y_qry):
         """
 
-        :param x_spt:   [setsz, c_, h, w]
-        :param y_spt:   [setsz]
-        :param x_qry:   [querysz, c_, h, w]
-        :param y_qry:   [querysz]
+        :param x_spt:   [support_sz, c_, h, w]
+        :param y_spt:   [support_sz]
+        :param x_qry:   [query_sz, c_, h, w]
+        :param y_qry:   [query_sz]
         :return:
         """
 
-        setsz, c_, h, w = x_spt.size()
+        support_sz, c_, h, w = x_spt.size()
 
         assert len(x_spt.shape) == 4
 
-        querysz = x_qry.size(0)
-
-        corrects = [0 for _ in range(self.update_step_test + 1)]
+        query_sz = x_qry.size(0)
 
         # in order to not ruin the state of running_mean/variance and bn_weight/bias
         # we finetunning on the copied model instead of self.net
         shared_net = deepcopy(self.shared_net)
         nway_net = deepcopy(self.nway_net)
         discrim_net = deepcopy(self.discrim_net)
+        nets = (shared_net, nway_net, discrim_net)
 
-        x_gen, y_gen = torch.rand_like(x_spt), y_spt
-
-        FloatTensor = torch.FloatTensor #  torch.cuda.FloatTensor if cuda else 
-        valid = Variable(FloatTensor(setsz, 1).fill_(1.0), requires_grad=False)
-        fake = Variable(FloatTensor(setsz, 1).fill_(0.0), requires_grad=False)
-
-        # 1. run the i-th task and compute loss for k=0
-
-        # run discriminator on real data
-        real_shared_layer = shared_net(x_spt)
-        real_class_logits = nway_net(real_shared_layer)
-        real_valid_preds = discrim_net(real_shared_layer)
-
-        real_nway_loss = F.cross_entropy(real_class_logits, y_spt)
-        real_valid_loss = F.mse_loss(real_valid_preds, valid)
-
-        # run discriminator on generated data
-        gen_shared_layer = shared_net(x_gen)
-        # gen_class_logits = nway_net(gen_shared_layer)
-        gen_valid_preds = discrim_net(gen_shared_layer)
-
-        # gen_nway_loss = F.cross_entropy(gen_class_logits, y_spt) #real_nway_loss
-        gen_valid_loss = F.mse_loss(gen_valid_preds, fake)
-
-        # nway_loss = (gen_nway_loss + real_nway_loss) / 2
-        nway_loss = real_nway_loss
-        valid_loss = (gen_valid_loss + real_valid_loss) / 2
-
-        shared_loss = nway_loss + valid_loss
-
-        
-        n_grad = torch.autograd.grad(nway_loss, nway_net.parameters(), retain_graph=True)
-        d_grad = torch.autograd.grad(valid_loss, discrim_net.parameters(), retain_graph=True)
-        s_grad = torch.autograd.grad(shared_loss, shared_net.parameters())
-
-
-        fast_s_weights = list(map(lambda p: p[1] - self.update_lr * p[0], zip(s_grad, shared_net.parameters())))
-        fast_n_weights = list(map(lambda p: p[1] - self.update_lr * p[0], zip(n_grad, nway_net.parameters())))
-        fast_d_weights = list(map(lambda p: p[1] - self.update_lr * p[0], zip(d_grad, discrim_net.parameters())))
-
-
-
-
-
-        # this is the loss and accuracy before first update
-        with torch.no_grad():
-            # [setsz, nway]
-            q_shared_layer = shared_net(x_qry, shared_net.parameters(), bn_training=True)
-            q_class_logits = nway_net(q_shared_layer, nway_net.parameters(), bn_training=True)
-            gen_valid_preds = discrim_net(q_shared_layer, discrim_net.parameters(), bn_training=True)
-
-
-            # [setsz]
-            pred_q = F.softmax(q_class_logits, dim=1).argmax(dim=1)
-            # scalar
-            correct = torch.eq(pred_q, y_qry).sum().item()
-            corrects[0] = corrects[0] + correct
-
-        # this is the loss and accuracy after the first update
-        with torch.no_grad():
-            # [setsz, nway]
-            q_shared_layer = shared_net(x_qry, fast_s_weights, bn_training=True)
-            q_class_logits = nway_net(q_shared_layer, fast_n_weights, bn_training=True)
-            gen_valid_preds = discrim_net(q_shared_layer, fast_d_weights, bn_training=True)
-
-
-            # [setsz]
-            pred_q = F.softmax(q_class_logits, dim=1).argmax(dim=1)
-            # scalar
-            correct = torch.eq(pred_q, y_qry).sum().item()
-            corrects[1] = corrects[1] + correct
-
-        for k in range(1, self.update_step_test):
-            # # 1. run the i-th task and compute loss for k=1~K-1
-            # logits = net(x_spt, fast_weights, bn_training=True)
-            # loss = F.cross_entropy(logits, y_spt)
-
-            # # 2. compute grad on theta_pi
-            # grad = torch.autograd.grad(loss, fast_weights)
-            # # 3. theta_pi = theta_pi - train_lr * grad
-            # fast_weights = list(map(lambda p: p[1] - self.update_lr * p[0], zip(grad, fast_weights)))
-
-
-            x_gen, y_gen = torch.rand_like(x_spt), y_spt
-            FloatTensor = torch.FloatTensor #  torch.cuda.FloatTensor if cuda else
-            valid = Variable(FloatTensor(setsz, 1).fill_(1.0), requires_grad=False)
-            fake = Variable(FloatTensor(setsz, 1).fill_(0.0), requires_grad=False)
-
-            # 1. run the i-th task and compute loss for k=0
-
-            # run discriminator on real data
-            real_shared_layer = shared_net(x_spt, fast_s_weights, bn_training=True)
-            real_class_logits = nway_net(real_shared_layer, fast_n_weights, bn_training=True)
-            real_valid_preds = discrim_net(real_shared_layer, fast_d_weights, bn_training=True)
-
-            real_nway_loss = F.cross_entropy(real_class_logits, y_spt)
-            real_valid_loss = F.mse_loss(real_valid_preds, valid)
-            # run discriminator on generated data
-            gen_shared_layer = shared_net(x_gen, fast_s_weights, bn_training=True)
-            # gen_class_logits = nway_net(gen_shared_layer, fast_n_weights, bn_training=True)
-            gen_valid_preds = discrim_net(gen_shared_layer, fast_d_weights, bn_training=True)
-
-            # gen_nway_loss = F.cross_entropy(gen_class_logits, y_spt) # real_nway_loss#
-            gen_valid_loss = F.mse_loss(gen_valid_preds, fake)
-
-            # nway_loss = (gen_nway_loss + real_nway_loss) / 2
-            nway_loss = real_nway_loss
-            valid_loss = (gen_valid_loss + real_valid_loss) / 2
-
-            shared_loss = nway_loss + valid_loss
-
-            
-            n_grad = torch.autograd.grad(nway_loss, fast_n_weights, retain_graph=True)
-            d_grad = torch.autograd.grad(valid_loss, fast_d_weights, retain_graph=True)
-            s_grad = torch.autograd.grad(shared_loss, fast_s_weights)
-
-
-            fast_s_weights = list(map(lambda p: p[1] - self.update_lr * p[0], zip(s_grad,  fast_s_weights)))
-            fast_n_weights = list(map(lambda p: p[1] - self.update_lr * p[0], zip(n_grad, fast_n_weights)))
-            fast_d_weights = list(map(lambda p: p[1] - self.update_lr * p[0], zip(d_grad, fast_d_weights)))
-
-
-
-            q_shared_layer = shared_net(x_qry, fast_s_weights, bn_training=True)
-            q_class_logits = nway_net(q_shared_layer, fast_n_weights, bn_training=True)
-
-
-
-            # logits_q = net(x_qry, fast_weights, bn_training=True)
-            # loss_q will be overwritten and just keep the loss_q on last update step.
-            loss_q = F.cross_entropy(q_class_logits, y_qry)
-
-            with torch.no_grad():
-                pred_q = F.softmax(q_class_logits, dim=1).argmax(dim=1)
-                correct = torch.eq(pred_q, y_qry).sum().item()  # convert to numpy
-                corrects[k + 1] = corrects[k + 1] + correct
-
+        loss_q, corrects = self.single_task_forward(x_spt, y_spt, x_qry, y_qry, nets=nets)
 
         del shared_net
         del nway_net
         del discrim_net
+        del nets # this may not be necessary
 
-        accs = np.array(corrects) / querysz
+        accs = corrects / query_sz
 
         return accs
-
 
 
 
