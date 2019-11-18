@@ -7,7 +7,7 @@ import  numpy as np
 
 class OmniglotNShot:
 
-    def __init__(self, root, batchsz, n_way, k_shot, k_query, imgsz):
+    def __init__(self, root, batchsz, n_way, k_shot, k_query, img_sz):
         """
         Different from mnistNShot, the
         :param root:
@@ -15,16 +15,16 @@ class OmniglotNShot:
         :param n_way:
         :param k_shot:
         :param k_qry:
-        :param imgsz:
+        :param img_sz:
         """
 
-        self.resize = imgsz
+        self.resize = img_sz
         if not os.path.isfile(os.path.join(root, 'omniglot.npy')):
             # if root/data.npy does not exist, just download it
             self.x = Omniglot(root, download=True,
                               transform=transforms.Compose([lambda x: Image.open(x).convert('L'),
-                                                            lambda x: x.resize((imgsz, imgsz)),
-                                                            lambda x: np.reshape(x, (imgsz, imgsz, 1)),
+                                                            lambda x: x.resize((img_sz, img_sz)),
+                                                            lambda x: np.reshape(x, (img_sz, img_sz, 1)),
                                                             lambda x: np.transpose(x, [2, 0, 1]),
                                                             lambda x: x/255.])
                               )
@@ -178,7 +178,7 @@ if __name__ == '__main__':
     # plt.ion()
     viz = visdom.Visdom(env='omniglot_view')
 
-    db = OmniglotNShot('db/omniglot', batchsz=20, n_way=5, k_shot=5, k_query=15, imgsz=64)
+    db = OmniglotNShot('db/omniglot', batchsz=20, n_way=5, k_shot=5, k_query=15, img_sz=64)
 
     for i in range(1000):
         x_spt, y_spt, x_qry, y_qry = db.next('train')

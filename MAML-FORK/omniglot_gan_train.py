@@ -54,11 +54,11 @@ def main(args):
     print('Total trainable tensors:', num)
 
     db_train = OmniglotNShot('omniglot',
-                       batchsz=args.task_num,
+                       batchsz=args.tasks_per_batch,
                        n_way=args.n_way,
                        k_shot=args.k_spt,
                        k_query=args.k_qry,
-                       imgsz=args.imgsz)
+                       img_sz=args.img_sz)
 
     for step in range(args.epoch):
 
@@ -74,7 +74,7 @@ def main(args):
 
         if step % 500 == 0:
             accs = []
-            for _ in range(1000//args.task_num):
+            for _ in range(1000//args.tasks_per_batch):
                 # test
                 x_spt, y_spt, x_qry, y_qry = db_train.next('test')
                 x_spt, y_spt, x_qry, y_qry = torch.from_numpy(x_spt).to(device), torch.from_numpy(y_spt).to(device), \
@@ -85,7 +85,7 @@ def main(args):
                     test_acc = mamlGAN.finetunning(x_spt_one, y_spt_one, x_qry_one, y_qry_one)
                     accs.append( test_acc )
 
-            # [b, update_step+1]
+            # [b, update_steps+1]
             accs = np.array(accs).mean(axis=0).astype(np.float16)
             print('Test acc:', accs)
 
@@ -97,13 +97,13 @@ if __name__ == '__main__':
     argparser.add_argument('--n_way', type=int, help='n way', default=5)
     argparser.add_argument('--k_spt', type=int, help='k shot for support set', default=1)
     argparser.add_argument('--k_qry', type=int, help='k shot for query set', default=15)
-    argparser.add_argument('--imgsz', type=int, help='imgsz', default=28)
-    argparser.add_argument('--imgc', type=int, help='imgc', default=1)
-    argparser.add_argument('--task_num', type=int, help='meta batch size, namely task num', default=32)
+    argparser.add_argument('--img_sz', type=int, help='img_sz', default=28)
+    argparser.add_argument('--img_c', type=int, help='img_c', default=1)
+    argparser.add_argument('--tasks_per_batch', type=int, help='meta batch size, i.e. number of tasks per batch', default=32)
     argparser.add_argument('--meta_lr', type=float, help='meta-level outer learning rate', default=1e-3)
     argparser.add_argument('--update_lr', type=float, help='task-level inner update learning rate', default=0.4)
-    argparser.add_argument('--update_step', type=int, help='task-level inner update steps', default=5)
-    argparser.add_argument('--update_step_test', type=int, help='update steps for finetunning', default=10)
+    argparser.add_argument('--update_steps', type=int, help='task-level inner update steps', default=5)
+    argparser.add_argument('--update_steps_test', type=int, help='update steps for finetunning', default=10)
 
     args = argparser.parse_args()
 
