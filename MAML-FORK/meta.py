@@ -32,7 +32,7 @@ class Meta(nn.Module):
         self.update_step_test = args.update_step_test
 
 
-        self.net = Learner(config, args.imgc, args.imgsz)
+        self.net = Learner(config, args.img_c, args.img_sz)
         self.meta_optim = optim.Adam(self.net.parameters(), lr=self.meta_lr)
 
 

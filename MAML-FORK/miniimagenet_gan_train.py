@@ -26,6 +26,7 @@ def main():
     print(args)
 
     shared_config = [
+        # [ch_out, ch_in, kernelsz, kernelsz, stride, padding]
         ('conv2d', [32, 3, 3, 3, 1, 0]),
         ('relu', [True]),
         ('bn', [32]),
@@ -72,14 +73,14 @@ def main():
     # batchsz here means total episode number
     mini = MiniImagenet('./data/', mode='train', n_way=args.n_way, k_shot=args.k_spt,
                         k_query=args.k_qry,
-                        batchsz=10000, resize=args.imgsz)
+                        batchsz=10000, resize=args.img_sz)
     mini_test = MiniImagenet('./data/', mode='test', n_way=args.n_way, k_shot=args.k_spt,
                              k_query=args.k_qry,
-                             batchsz=100, resize=args.imgsz)
+                             batchsz=100, resize=args.img_sz)
 
     for epoch in range(args.epoch//10000):
         # fetch meta_batchsz num of episode each time
-        db = DataLoader(mini, args.task_num, shuffle=True, num_workers=1, pin_memory=True)
+        db = DataLoader(mini, args.tasks_per_batch, shuffle=True, num_workers=1, pin_memory=True)
 
         for step, (x_spt, y_spt, x_qry, y_qry) in enumerate(db):
             x_spt, y_spt, x_qry, y_qry = x_spt.to(device), y_spt.to(device), x_qry.to(device), y_qry.to(device)
@@ -100,7 +101,7 @@ def main():
                     accs = mamlGAN.finetunning(x_spt, y_spt, x_qry, y_qry)
                     accs_all_test.append(accs)
 
-                # [b, update_step+1]
+                # [b, update_steps+1]
                 accs = np.array(accs_all_test).mean(axis=0).astype(np.float16)
                 print('Test acc:', accs)
 
@@ -112,13 +113,13 @@ if __name__ == '__main__':
     argparser.add_argument('--n_way', type=int, help='n way', default=5)
     argparser.add_argument('--k_spt', type=int, help='k shot for support set', default=1)
     argparser.add_argument('--k_qry', type=int, help='k shot for query set', default=15)
-    argparser.add_argument('--imgsz', type=int, help='imgsz', default=84)
-    argparser.add_argument('--imgc', type=int, help='imgc', default=3)
-    argparser.add_argument('--task_num', type=int, help='meta batch size, namely task num', default=4)
+    argparser.add_argument('--img_sz', type=int, help='img_sz', default=84)
+    argparser.add_argument('--img_c', type=int, help='img_c', default=3)
+    argparser.add_argument('--tasks_per_batch', type=int, help='meta batch size, namely task num', default=4)
     argparser.add_argument('--meta_lr', type=float, help='meta-level outer learning rate', default=1e-3)
     argparser.add_argument('--update_lr', type=float, help='task-level inner update learning rate', default=0.01)
-    argparser.add_argument('--update_step', type=int, help='task-level inner update steps', default=5)
-    argparser.add_argument('--update_step_test', type=int, help='update steps for finetunning', default=10)
+    argparser.add_argument('--update_steps', type=int, help='task-level inner update steps', default=5)
+    argparser.add_argument('--update_steps_test', type=int, help='update steps for finetunning', default=10)
 
     args = argparser.parse_args()
 
