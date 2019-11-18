@@ -17,7 +17,7 @@ class Generator(nn.Module):
         :param img_c: 1 or 3
         :param img_sz:  28 or 84
         """
-        super(Learner, self).__init__()
+        super(Generator, self).__init__()
 
 
         self.config = config
@@ -68,12 +68,19 @@ class Generator(nn.Module):
                 running_mean = nn.Parameter(torch.zeros(param[0]), requires_grad=False)
                 running_var = nn.Parameter(torch.ones(param[0]), requires_grad=False)
                 self.vars_bn.extend([running_mean, running_var])
+            elif name is "random_proj":
+                hidden_sz, channels, height_width = param
 
+                w = nn.Parameter(torch.ones(height_width*height_width*channels, hidden_sz))
+                torch.nn.init.kaiming_normal_(w)
+
+                self.vars.append(w)
+                self.vars.append(nn.Parameter(torch.zeros(height_width*height_width*channels)))
 
 
 
             elif name in ['tanh', 'relu', 'upsample', 'avg_pool2d', 'max_pool2d',
-                          'flatten', 'reshape', 'leakyrelu', 'sigmoid', 'random']:
+                          'flatten', 'reshape', 'leakyrelu', 'sigmoid']:
                 continue
             else:
                 raise NotImplementedError
@@ -105,6 +112,9 @@ class Generator(nn.Module):
                 tmp = 'leakyrelu:(slope:%f)'%(param[0])
                 info += tmp + '\n'
 
+            elif name is 'random_proj':
+                info += 'random_proj:(hidden_sz:%d, height_width:%d, ch_out:%d)'%(param[0], param[1], param[2]) + '\n'
+
 
             elif name is 'avg_pool2d':
                 tmp = 'avg_pool2d:(k:%d, stride:%d, padding:%d)'%(param[0], param[1], param[2])
@@ -134,7 +144,7 @@ class Generator(nn.Module):
         :return: x, loss, likelihood, kld
         """
 
-        batch_sz = x[0]
+        batch_sz = x.size()[0]
 
         if vars is None:
             vars = self.vars
@@ -166,10 +176,17 @@ class Generator(nn.Module):
                 x = F.batch_norm(x, running_mean, running_var, weight=w, bias=b, training=bn_training)
                 idx += 2
                 bn_idx += 2
-            elif name is 'random':
-                hidden_sz = param[0]
+            elif name is 'random_proj':
+                # gonna need to change "x" in class def
+                hidden_sz, channels, height_width = param
                 x = torch.randn((batch_sz, hidden_sz), requires_grad=True) # could try this with false
                 y = torch.randint(low=0, high=self.num_classes, size=(batch_sz,))
+
+                w, b = vars[idx], vars[idx + 1]
+                x = F.linear(x, w, b)
+                idx += 2
+
+                x = x.view(x.size(0), channels, height_width, height_width)
 
 
             elif name is 'flatten':
