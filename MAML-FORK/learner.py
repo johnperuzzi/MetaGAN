@@ -10,12 +10,12 @@ class Learner(nn.Module):
 
     """
 
-    def __init__(self, config, imgc, imgsz):
+    def __init__(self, config, img_c, img_sz):
         """
 
         :param config: network config file, type:list of (string, list)
-        :param imgc: 1 or 3
-        :param imgsz:  28 or 84
+        :param img_c: 1 or 3
+        :param img_sz:  28 or 84
         """
         super(Learner, self).__init__()
 
