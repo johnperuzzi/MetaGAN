@@ -70,6 +70,8 @@ class MetaGAN(nn.Module):
 
         return total_norm/counter
 
+    # Returns predicted class logits and descriminator outputs according
+    # to the input "x", using the shared/nway/discrim nets and weights provided
     def pred(self, x, weights=[None, None, None], nets=None, discrim=True):
         if type(nets) == type(None):
             nets = [self.shared_net, self.nway_net, self.discrim_net]
@@ -85,6 +87,7 @@ class MetaGAN(nn.Module):
         discrim_preds = discrim_net(shared_layer, vars=discrim_weights, bn_training=True)
         return class_logits, discrim_preds
 
+    # Returns the loss(es) of the y's according to the class and possibly also descriminator predictions
     def loss(self, class_logits, y_class, discrim_preds=None, y_discrim=None):
         nway_loss = F.cross_entropy(class_logits, y_class)
 
@@ -94,7 +97,10 @@ class MetaGAN(nn.Module):
         discrim_loss = F.mse_loss(discrim_preds, y_discrim)
         return nway_loss, discrim_loss
 
-    def update_weights(self, shared_loss, nway_loss, discrim_loss, weights):
+    # Returns new weights by backpropping their affect on the losses.
+    # Losses and weights should be (shared, nway, descrim)
+    def update_weights(self, losses, weights):
+        shared_loss, nway_loss, discrim_loss = losses
         shared_weights, nway_weights, discrim_weights = weights
 
         n_grad = torch.autograd.grad(nway_loss, nway_weights, retain_graph=True)
@@ -152,16 +158,13 @@ class MetaGAN(nn.Module):
             gen_class_logits, gen_discrim_preds = self.pred(x_gen, weights=net_weights)
             gen_nway_loss, gen_discrim_loss = self.loss(gen_class_logits, y_gen, gen_discrim_preds, fake)
 
-            # nway_loss = (gen_nway_loss + real_nway_loss) / 2
-            nway_loss = real_nway_loss
-            # discrim_loss = (gen_discrim_loss + real_discrim_loss) / 2
-            discrim_loss = real_discrim_loss
-
-
+            nway_loss = (gen_nway_loss + real_nway_loss) / 2
+            discrim_loss = (gen_discrim_loss + real_discrim_loss) / 2
             shared_loss = nway_loss + discrim_loss
 
             # 2. compute grad on theta_pi
-            net_weights = self.update_weights(shared_loss, nway_loss, discrim_loss, net_weights)
+            losses = (shared_loss, nway_loss, discrim_loss)
+            net_weights = self.update_weights(losses, net_weights)
 
             # meta-test accuracy
             with torch.no_grad():
