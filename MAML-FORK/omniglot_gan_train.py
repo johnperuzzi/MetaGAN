@@ -43,8 +43,7 @@ def main(args):
         ('sigmoid', [True])
     ]
 
-    # device = torch.device('cuda')
-    device = torch.device('cpu')
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     mamlGAN = MetaGAN(args, shared_config, nway_config, discriminator_config).to(device)
 
 

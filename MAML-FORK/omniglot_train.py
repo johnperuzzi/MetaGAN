@@ -30,7 +30,7 @@ def main(args):
         ('linear', [args.n_way, 64])
     ]
 
-    device = torch.device('cpu')
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     maml = Meta(args, config).to(device)
 
     tmp = filter(lambda x: x.requires_grad, maml.parameters())
