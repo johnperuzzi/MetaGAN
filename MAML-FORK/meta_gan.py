@@ -139,7 +139,7 @@ class MetaGAN(nn.Module):
         # for net in nets:
         #     net_weights.append([w.clone() for w in net.parameters()])
 
-        cuda = False
+        cuda = torch.cuda.is_available()
         FloatTensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor 
 
         # this is the meta-test loss and accuracy before first update
