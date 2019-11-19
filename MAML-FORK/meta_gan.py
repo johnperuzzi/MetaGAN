@@ -9,6 +9,7 @@ import  numpy as np
 from    learner import Learner
 from    copy import deepcopy
 from torch.autograd import Variable
+from conditioner import Conditioner
 
 
 
@@ -32,6 +33,7 @@ class MetaGAN(nn.Module):
         self.update_steps = args.update_steps
         self.update_steps_test = args.update_steps_test
 
+        self.conditioner = Conditioner()
         # self.generator = Generator(gen_config, args.img_c, args.img_sz, args)
 
         self.shared_net = Learner(shared_config, args.img_c, args.img_sz)
@@ -139,6 +141,12 @@ class MetaGAN(nn.Module):
             correct = torch.eq(pred_q, y_qry).sum().item()
             corrects[0] += correct
 
+
+        # Generate class level image embeddings
+        with torch.no_grad():
+            image_embeddings = self.conditioner(x_spt)
+            image_embeddings = image_embeddings.view(self.n_way, self.k_spt, -1)
+            class_image_embeddings = torch.mean(image_embeddings, 1)
 
         # 0. fake gen examples. uses same examples for all inner update steps
         x_gen = torch.rand_like(x_spt)
