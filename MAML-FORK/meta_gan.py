@@ -35,6 +35,8 @@ class MetaGAN(nn.Module):
         self.update_steps_test = args.update_steps_test
 
         self.conditioner = Conditioner()
+
+        # links for understanding how to make generator config
         # https://pytorch.org/tutorials/beginner/dcgan_faces_tutorial.html
         # http://deeplearning.net/software/theano_versions/dev/tutorial/conv_arithmetic.html
         # https://github.com/soumith/dcgan.torch/blob/master/main.lua
@@ -47,10 +49,6 @@ class MetaGAN(nn.Module):
         params = list(self.shared_net.parameters()) + list(self.nway_net.parameters()) + list(self.discrim_net.parameters())
         params += list(self.generator.parameters())
         self.meta_optim = optim.Adam(params, lr=self.meta_lr)
-        # self.meta_shared_optim = optim.Adam(self.shared_net.parameters(), lr=self.meta_lr)
-        # self.meta_nway_optim = optim.Adam(self.nway_net.parameters(), lr=self.meta_lr)
-        # self.meta_discrim_optim = optim.Adam(self.discrim_net.parameters(), lr=self.meta_lr)
-
 
 
 
