@@ -7,6 +7,7 @@ from    torch import optim
 import  numpy as np
 
 from    learner import Learner
+from    generator import Generator
 from    copy import deepcopy
 from torch.autograd import Variable
 from conditioner import Conditioner
@@ -34,13 +35,15 @@ class MetaGAN(nn.Module):
         self.update_steps_test = args.update_steps_test
 
         self.conditioner = Conditioner()
-        # self.generator = Generator(gen_config, args.img_c, args.img_sz, args)
+        gen_config = [('random_proj', [100, 1, 28])]
+        self.generator = Generator(gen_config, args.img_c, args.img_sz, args.n_way)
 
         self.shared_net = Learner(shared_config, args.img_c, args.img_sz)
         self.nway_net = Learner(nway_config, args.img_c, args.img_sz)
         self.discrim_net = Learner(discriminator_config, args.img_c, args.img_sz)
 
         params = list(self.shared_net.parameters()) + list(self.nway_net.parameters()) + list(self.discrim_net.parameters())
+        params += list(self.generator.parameters())
         self.meta_optim = optim.Adam(params, lr=self.meta_lr)
         # self.meta_shared_optim = optim.Adam(self.shared_net.parameters(), lr=self.meta_lr)
         # self.meta_nway_optim = optim.Adam(self.nway_net.parameters(), lr=self.meta_lr)
@@ -91,6 +94,8 @@ class MetaGAN(nn.Module):
 
     # Returns the loss(es) of the y's according to the class and possibly also descriminator predictions
     def loss(self, class_logits, y_class, discrim_preds=None, y_discrim=None):
+        # https://github.com/tensorflow/gan/blob/master/tensorflow_gan/python/losses/losses_impl.py
+        # should change to wasserstein loss with diff gen and discrim losses
         nway_loss = F.cross_entropy(class_logits, y_class)
 
         if type(discrim_preds) == type(None):
@@ -101,9 +106,9 @@ class MetaGAN(nn.Module):
 
     # Returns new weights by backpropping their affect on the losses.
     # Losses and weights should be (shared, nway, descrim)
-    def update_weights(self, losses, weights):
-        shared_loss, nway_loss, discrim_loss = losses
-        shared_weights, nway_weights, discrim_weights = weights
+    def update_weights(self, net_losses, net_weights, gen_loss, gen_weights):
+        shared_loss, nway_loss, discrim_loss = net_losses
+        shared_weights, nway_weights, discrim_weights = net_weights
 
         n_grad = torch.autograd.grad(nway_loss, nway_weights, retain_graph=True)
         n_weights = [w - self.update_lr * grad for grad, w in zip(n_grad, nway_weights)]
@@ -111,10 +116,13 @@ class MetaGAN(nn.Module):
         d_grad = torch.autograd.grad(discrim_loss, discrim_weights, retain_graph=True)
         d_weights = [w - self.update_lr * grad for grad, w in zip(d_grad, discrim_weights)]
 
-        s_grad = torch.autograd.grad(shared_loss, shared_weights)
+        s_grad = torch.autograd.grad(shared_loss, shared_weights, retain_graph=True)
         s_weights = [w - self.update_lr * grad for grad, w in zip(s_grad, shared_weights)]
 
-        return s_weights, n_weights, d_weights
+        g_grad = torch.autograd.grad(gen_loss, gen_weights)
+        g_weights = [w - self.update_lr * grad for grad, w in zip(g_grad, gen_weights)]
+
+        return (s_weights, n_weights, d_weights), g_weights
 
     def single_task_forward(self, x_spt, y_spt, x_qry, y_qry, nets=None):
         support_sz, c_, h, w = x_spt.size()
@@ -123,12 +131,13 @@ class MetaGAN(nn.Module):
         if type(nets) == type(None):
             nets = (self.shared_net, self.nway_net, self.discrim_net)
 
-        # net_weights = [net.parameters() for net in nets]
+        net_weights = [net.parameters() for net in nets]
+        gen_weights = self.generator.parameters()
 
         # check if I need to copy these like this or can do as above
-        net_weights = []
-        for net in nets:
-            net_weights.append([w.clone() for w in net.parameters()])
+        # net_weights = []
+        # for net in nets:
+        #     net_weights.append([w.clone() for w in net.parameters()])
 
         cuda = False
         FloatTensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor 
@@ -149,14 +158,16 @@ class MetaGAN(nn.Module):
             class_image_embeddings = torch.mean(image_embeddings, 1)
 
         # 0. fake gen examples. uses same examples for all inner update steps
-        x_gen = torch.rand_like(x_spt)
-        y_gen = y_spt
+        # x_gen = torch.rand_like(x_spt)
+        # y_gen = 
+
 
         valid = Variable(FloatTensor(support_sz, 1).fill_(1.0), requires_grad=True)
         fake = Variable(FloatTensor(support_sz, 1).fill_(0.0), requires_grad=True)
 
         # run the i-th task and compute loss for k-th inner update
         for k in range(1, self.update_steps + 1):
+            x_gen, y_gen = self.generator(x_spt, vars=gen_weights, bn_training=True)  
 
             # run discriminator on real data
             real_class_logits, real_discrim_preds = self.pred(x_spt, weights=net_weights)
@@ -170,9 +181,12 @@ class MetaGAN(nn.Module):
             discrim_loss = (gen_discrim_loss + real_discrim_loss) / 2
             shared_loss = nway_loss + discrim_loss
 
+            # this needs to be updated/modified for wasserstein
+            gen_loss = gen_nway_loss - gen_discrim_loss
+
             # 2. compute grad on theta_pi
-            losses = (shared_loss, nway_loss, discrim_loss)
-            net_weights = self.update_weights(losses, net_weights)
+            net_losses = (shared_loss, nway_loss, discrim_loss)
+            net_weights, gen_weights = self.update_weights(net_losses, net_weights, gen_loss, gen_weights)
 
             # meta-test accuracy
             with torch.no_grad():
