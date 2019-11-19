@@ -35,7 +35,7 @@ class MetaGAN(nn.Module):
         self.update_steps_test = args.update_steps_test
 
         self.conditioner = Conditioner()
-        gen_config = [('random_proj', [100, 1, 28])]
+        gen_config = [('random_proj', [100, 3, 84])]
         self.generator = Generator(gen_config, args.img_c, args.img_sz, args.n_way)
 
         self.shared_net = Learner(shared_config, args.img_c, args.img_sz)
