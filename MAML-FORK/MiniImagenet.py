@@ -95,7 +95,7 @@ class MiniImagenet(Dataset):
     def create_batch(self, batchsz):
         """
         create batch for meta-learning.
-        ×episode× here means batch, and it means how many sets we want to retain.
+        *episode* here means batch, and it means how many sets we want to retain.
         :param episodes: batch size
         :return:
         """
