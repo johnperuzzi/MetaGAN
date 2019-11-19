@@ -18,7 +18,7 @@ class MetaGAN(nn.Module):
     """
     Meta Learner with GAN incorporated
     """
-    def __init__(self, args, shared_config, nway_config, discriminator_config):
+    def __init__(self, args, shared_config, nway_config, discriminator_config, gen_config):
         """
 
         :param args:
@@ -35,7 +35,9 @@ class MetaGAN(nn.Module):
         self.update_steps_test = args.update_steps_test
 
         self.conditioner = Conditioner()
-        gen_config = [('random_proj', [100, 3, 84])]
+        # https://pytorch.org/tutorials/beginner/dcgan_faces_tutorial.html
+        # http://deeplearning.net/software/theano_versions/dev/tutorial/conv_arithmetic.html
+        # https://github.com/soumith/dcgan.torch/blob/master/main.lua
         self.generator = Generator(gen_config, args.img_c, args.img_sz, args.n_way)
 
         self.shared_net = Learner(shared_config, args.img_c, args.img_sz)
@@ -152,10 +154,10 @@ class MetaGAN(nn.Module):
 
 
         # Generate class level image embeddings
-        with torch.no_grad():
-            image_embeddings = self.conditioner(x_spt)
-            image_embeddings = image_embeddings.view(self.n_way, self.k_spt, -1)
-            class_image_embeddings = torch.mean(image_embeddings, 1)
+        # with torch.no_grad():
+        #     image_embeddings = self.conditioner(x_spt)
+        #     image_embeddings = image_embeddings.view(self.n_way, self.k_spt, -1)
+        #     class_image_embeddings = torch.mean(image_embeddings, 1)
 
         # 0. fake gen examples. uses same examples for all inner update steps
         # x_gen = torch.rand_like(x_spt)
@@ -167,7 +169,7 @@ class MetaGAN(nn.Module):
 
         # run the i-th task and compute loss for k-th inner update
         for k in range(1, self.update_steps + 1):
-            x_gen, y_gen = self.generator(x_spt, vars=gen_weights, bn_training=True)  
+            x_gen, y_gen = self.generator(x_spt, vars=gen_weights, bn_training=True) 
 
             # run discriminator on real data
             real_class_logits, real_discrim_preds = self.pred(x_spt, weights=net_weights)

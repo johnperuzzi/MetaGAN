@@ -43,8 +43,21 @@ def main(args):
         ('sigmoid', [True])
     ]
 
+    gen_config = [
+        ('random_proj', [100, 64, 7]), # [latent_dim, ch_out, h_out/w_out]
+        # img: (64, 7, 7)
+        ('convt2d', [64, 32, 4, 4, 2, 1]), # [ch_in, ch_out, kernel_sz, kernel_sz, stride, padding]
+        ('bn', [32]),
+        ('relu', [True]),
+        # img: (32, 14, 14)
+        ('convt2d', [32, 1, 4, 4, 2, 1]),
+        # img: (1, 28, 28)
+        ('sigmoid', [True])
+    ]
+
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    mamlGAN = MetaGAN(args, shared_config, nway_config, discriminator_config).to(device)
+    mamlGAN = MetaGAN(args, shared_config, nway_config, discriminator_config, gen_config).to(device)
 
 
     tmp = filter(lambda x: x.requires_grad, mamlGAN.parameters())

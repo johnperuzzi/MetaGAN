@@ -40,7 +40,8 @@ class Generator(nn.Module):
                 self.vars.append(nn.Parameter(torch.zeros(param[0])))
 
             elif name is 'convt2d':
-                # [ch_in, ch_out, kernelsz, kernelsz, stride, padding]
+                # [ch_in, ch_out, kernel_sz, kernel_sz, stride, padding]
+                # output will be sz = stride * (input_sz) + kernel_sz
                 w = nn.Parameter(torch.ones(*param[:4]))
                 # gain=1 according to cbfin's implementation
                 torch.nn.init.kaiming_normal_(w)
@@ -69,6 +70,7 @@ class Generator(nn.Module):
                 running_var = nn.Parameter(torch.ones(param[0]), requires_grad=False)
                 self.vars_bn.extend([running_mean, running_var])
             elif name is "random_proj":
+                # [ch_in, ch_out, img_sz]
                 hidden_sz, channels, height_width = param
 
                 w = nn.Parameter(torch.ones(height_width*height_width*channels, hidden_sz))
