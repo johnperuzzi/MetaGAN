@@ -50,6 +50,9 @@ class MetaGAN(nn.Module):
         params += list(self.generator.parameters())
         self.meta_optim = optim.Adam(params, lr=self.meta_lr)
 
+        self.valid_val = 1.0 # requires that valid_val > fake_val
+        self.fake_val = 0.0
+
 
 
     def clip_grad_by_norm_(self, grad, max_norm):
@@ -91,6 +94,7 @@ class MetaGAN(nn.Module):
 
         discrim_preds = discrim_net(shared_layer, vars=discrim_weights, bn_training=True)
         return class_logits, discrim_preds
+ 
 
     # Returns the loss(es) of the y's according to the class and possibly also descriminator predictions
     def loss(self, class_logits, y_class, discrim_preds=None, y_discrim=None):
@@ -124,10 +128,17 @@ class MetaGAN(nn.Module):
 
         return (s_weights, n_weights, d_weights), g_weights
 
+
     def single_task_forward(self, x_spt, y_spt, x_qry, y_qry, nets=None):
         support_sz, c_, h, w = x_spt.size()
 
-        corrects = np.zeros(self.update_steps + 1)
+        corrects = {key: np.zeros(self.update_steps + 1) for key in 
+                        ["q_discrim", # number of meta-test (query) images correctly discriminated
+                        "q_nway", # number of meta-test (query) images correctly classified
+                        "gen_discrim", # number of generated images correctly discriminated
+                        "gen_nway"]} # number of generated images correctly classified
+        
+
         if type(nets) == type(None):
             nets = (self.shared_net, self.nway_net, self.discrim_net)
 
@@ -144,11 +155,10 @@ class MetaGAN(nn.Module):
 
         # this is the meta-test loss and accuracy before first update
         with torch.no_grad():
-            q_class_logits = self.pred(x_qry, weights=[None, None, None], discrim=False)
+            q_class_logits, q_discrim_preds = self.pred(x_qry, weights=[None, None, None])
 
-            pred_q = F.softmax(q_class_logits, dim=1).argmax(dim=1)
-            correct = torch.eq(pred_q, y_qry).sum().item()
-            corrects[0] += correct
+            corrects['q_nway'][0] += torch.eq(q_class_logits.argmax(dim=1), y_qry).sum().item()
+            corrects['q_discrim'][0] += (q_discrim_preds > (self.valid_val + self.fake_val) / 2).sum().item()
 
 
         # Generate class level image embeddings
@@ -162,8 +172,8 @@ class MetaGAN(nn.Module):
         # y_gen = 
 
 
-        valid = Variable(FloatTensor(support_sz, 1).fill_(1.0), requires_grad=True)
-        fake = Variable(FloatTensor(support_sz, 1).fill_(0.0), requires_grad=True)
+        valid = Variable(FloatTensor(support_sz, 1).fill_(self.valid_val), requires_grad=True)
+        fake = Variable(FloatTensor(support_sz, 1).fill_(self.fake_val), requires_grad=True)
 
         # run the i-th task and compute loss for k-th inner update
         for k in range(1, self.update_steps + 1):
@@ -190,12 +200,23 @@ class MetaGAN(nn.Module):
 
             # meta-test accuracy
             with torch.no_grad():
-                # [query_sz]
-                q_class_logits = self.pred(x_qry, weights=net_weights, discrim=False)
+                # using gen from before the update to save computation
+                corrects["gen_discrim"][k-1] += (gen_discrim_preds < (self.valid_val + self.fake_val) / 2).sum().item()
+                corrects["gen_nway"][k-1] += torch.eq(gen_class_logits.argmax(dim=1), y_gen).sum().item()
 
-                pred_q = F.softmax(q_class_logits, dim=1).argmax(dim=1)
-                correct = torch.eq(pred_q, y_qry).sum().item()
-                corrects[k] += correct
+                # [query_sz]
+                q_class_logits, q_discrim_preds = self.pred(x_qry, weights=net_weights)
+
+                corrects['q_nway'][k] += torch.eq(q_class_logits.argmax(dim=1), y_qry).sum().item()
+                corrects['q_discrim'][k] += (q_discrim_preds > (self.valid_val + self.fake_val) / 2).sum().item()
+
+        # final gen-discrim and gen-nway accuracy
+        with torch.no_grad():
+            x_gen, y_gen = self.generator(x_spt, vars=gen_weights, bn_training=True) 
+            gen_class_logits, gen_discrim_preds = self.pred(x_gen, weights=net_weights)
+
+            corrects["gen_discrim"][-1] += (gen_discrim_preds < (self.valid_val + self.fake_val) / 2).sum().item()
+            corrects["gen_nway"][-1] += torch.eq(gen_class_logits.argmax(dim=1), y_gen).sum().item()
 
         # meta-test loss
         q_class_logits = self.pred(x_qry, weights=net_weights, discrim=False)
@@ -221,7 +242,7 @@ class MetaGAN(nn.Module):
         for i in range(tasks_per_batch):
             loss_q_tmp, corrects_tmp = self.single_task_forward(x_spt[i], y_spt[i], x_qry[i], y_qry[i])
             loss_q += loss_q_tmp
-            corrects += corrects_tmp
+            corrects += corrects_tmp["q_nway"]
 
         # end of all tasks
         # sum over final losses on query set across all tasks
@@ -267,7 +288,7 @@ class MetaGAN(nn.Module):
         del discrim_net
         del nets # this may not be necessary
 
-        accs = corrects / query_sz
+        accs = corrects['q_nway'] / query_sz
 
         return accs
 
