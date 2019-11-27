@@ -6,6 +6,11 @@ from    torch.utils.data import DataLoader
 from    torch.optim import lr_scheduler
 import  random, sys, pickle
 import  argparse
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
+import json
+from datetime import datetime
+
 
 from meta_gan import MetaGAN
 
@@ -16,6 +21,13 @@ def mean_confidence_interval(accs, confidence=0.95):
     h = se * scipy.stats.t._ppf((1 + confidence) / 2, n - 1)
     return m, h
 
+def mkdir_p(path):
+    try:
+        os.makedirs(path)
+    except OSError as exc: # Python >2.5
+        if exc.errno == errno.EEXIST and os.path.isdir(path):
+            pass
+        else: raise
 
 def main():
 
@@ -88,7 +100,20 @@ def main():
     mini_test = MiniImagenet('./data/', mode='test', n_way=args.n_way, k_shot=args.k_spt,
                              k_query=args.k_qry,
                              batchsz=100, resize=args.img_sz)
+    
+    now = datetime.now().replace(second=0, microsecond=0)
+    path = "results/" + str(now)
+    mkdir_p(path)
 
+    file = open(path +  '/architecture.txt', 'w+')
+    file.write("shared_config = " + json.dumps(shared_config) + "\n" + 
+        "nway_config = " + json.dumps(nway_config) + "\n" +
+        "discriminator_config = " + json.dumps(discriminator_config) + "\n" + 
+        "gen_config = " + json.dumps(gen_config)
+        )
+    file.close()
+
+    file = open(path +  '/accuracies.txt', 'w+')
     for epoch in range(args.epoch//10000):
         # fetch meta_batchsz num of episode each time
         db = DataLoader(mini, args.tasks_per_batch, shuffle=True, num_workers=1, pin_memory=True)
@@ -100,7 +125,7 @@ def main():
 
             if step % 30 == 0:
                 print('step:', step, '\ttraining acc:', accs)
-
+                file.write(str(accs))
             if step % 500 == 0:  # evaluation
                 db_test = DataLoader(mini_test, 1, shuffle=True, num_workers=1, pin_memory=True)
                 accs_all_test = []
@@ -109,8 +134,10 @@ def main():
                     x_spt, y_spt, x_qry, y_qry = x_spt.squeeze(0).to(device), y_spt.squeeze(0).to(device), \
                                                  x_qry.squeeze(0).to(device), y_qry.squeeze(0).to(device)
 
-                    accs = mamlGAN.finetunning(x_spt, y_spt, x_qry, y_qry)
+                    accs, imgs = mamlGAN.finetunning(x_spt, y_spt, x_qry, y_qry)
                     accs_all_test.append(accs)
+
+            
 
                 # [b, update_steps+1]
                 accs = np.array(accs_all_test).mean(axis=0).astype(np.float16)

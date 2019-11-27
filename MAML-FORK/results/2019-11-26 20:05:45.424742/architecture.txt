@@ -1,0 +1,4 @@
+shared_config = [["conv2d", [32, 3, 3, 3, 1, 0]], ["relu", [true]], ["bn", [32]], ["max_pool2d", [2, 2, 0]], ["conv2d", [32, 32, 3, 3, 1, 0]], ["relu", [true]], ["bn", [32]], ["max_pool2d", [2, 2, 0]], ["conv2d", [32, 32, 3, 3, 1, 0]], ["relu", [true]], ["bn", [32]], ["max_pool2d", [2, 2, 0]]]
+nway_config = [["conv2d", [32, 32, 3, 3, 1, 0]], ["relu", [true]], ["bn", [32]], ["max_pool2d", [2, 1, 0]], ["flatten", []], ["linear", [5, 800]]]
+discriminator_config = [["conv2d", [32, 32, 3, 3, 1, 0]], ["relu", [true]], ["bn", [32]], ["max_pool2d", [2, 1, 0]], ["flatten", []], ["linear", [1, 800]], ["sigmoid", [true]]]
+gen_config = [["random_proj", [100, 32, 21]], ["convt2d", [32, 16, 4, 4, 2, 1]], ["bn", [16]], ["relu", [true]], ["convt2d", [16, 3, 4, 4, 2, 1]], ["sigmoid", [true]]]

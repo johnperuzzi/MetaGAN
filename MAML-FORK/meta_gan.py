@@ -124,10 +124,12 @@ class MetaGAN(nn.Module):
 
         return (s_weights, n_weights, d_weights), g_weights
 
-    def single_task_forward(self, x_spt, y_spt, x_qry, y_qry, nets=None):
+    def single_task_forward(self, x_spt, y_spt, x_qry, y_qry, nets=None, images=True):
         support_sz, c_, h, w = x_spt.size()
 
         corrects = np.zeros(self.update_steps + 1)
+
+
         if type(nets) == type(None):
             nets = (self.shared_net, self.nway_net, self.discrim_net)
 
@@ -200,8 +202,10 @@ class MetaGAN(nn.Module):
         # meta-test loss
         q_class_logits = self.pred(x_qry, weights=net_weights, discrim=False)
         loss_q = self.loss(q_class_logits, y_qry) # doesn't use discrim loss
-
-        return loss_q, corrects  
+        if images:
+            return loss_q, corrects, x_gen
+        else:
+            return loss_q, corrects
 
 
     def forward(self, x_spt, y_spt, x_qry, y_qry):
@@ -219,7 +223,7 @@ class MetaGAN(nn.Module):
         corrects = np.zeros(self.update_steps + 1)
         
         for i in range(tasks_per_batch):
-            loss_q_tmp, corrects_tmp = self.single_task_forward(x_spt[i], y_spt[i], x_qry[i], y_qry[i])
+            loss_q_tmp, corrects_tmp = self.single_task_forward(x_spt[i], y_spt[i], x_qry[i], y_qry[i], images=False)
             loss_q += loss_q_tmp
             corrects += corrects_tmp
 
@@ -260,7 +264,7 @@ class MetaGAN(nn.Module):
         discrim_net = deepcopy(self.discrim_net)
         nets = (shared_net, nway_net, discrim_net)
 
-        loss_q, corrects = self.single_task_forward(x_spt, y_spt, x_qry, y_qry, nets=nets)
+        loss_q, corrects, imgs = self.single_task_forward(x_spt, y_spt, x_qry, y_qry, nets=nets, images=True)
 
         del shared_net
         del nway_net
@@ -269,7 +273,8 @@ class MetaGAN(nn.Module):
 
         accs = corrects / query_sz
 
-        return accs
+
+        return accs, imgs
 
 
 

@@ -1,0 +1,2 @@
+hi[["random_proj", [100, 32, 21]], ["convt2d", [32, 16, 4, 4, 2, 1]], ["bn", [16]], ["relu", [true]], ["convt2d", [16, 3, 4, 4, 2, 1]], ["sigmoid", [true]]]
+moretest
