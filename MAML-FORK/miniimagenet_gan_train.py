@@ -113,7 +113,7 @@ def main():
         )
     file.close()
 
-    file = open(path +  '/accuracies.txt', 'w+')
+    acc_file = open(path +  '/accuracies.txt', 'ab')
     for epoch in range(args.epoch//10000):
         # fetch meta_batchsz num of episode each time
         db = DataLoader(mini, args.tasks_per_batch, shuffle=True, num_workers=1, pin_memory=True)
@@ -125,22 +125,33 @@ def main():
 
             if step % 30 == 0:
                 print('step:', step, '\ttraining acc:', accs)
-                file.write(str(accs))
+                np.savetxt(acc_file, np.array([accs]))
+            acc_file.close()
+            acc_file = open(path +  '/accuracies.txt', 'w+')
             if step % 500 == 0:  # evaluation
                 db_test = DataLoader(mini_test, 1, shuffle=True, num_workers=1, pin_memory=True)
                 accs_all_test = []
-
+                imgs_all_test = []
+                i = 0
                 for x_spt, y_spt, x_qry, y_qry in db_test:
                     x_spt, y_spt, x_qry, y_qry = x_spt.squeeze(0).to(device), y_spt.squeeze(0).to(device), \
                                                  x_qry.squeeze(0).to(device), y_qry.squeeze(0).to(device)
 
                     accs, imgs = mamlGAN.finetunning(x_spt, y_spt, x_qry, y_qry)
                     accs_all_test.append(accs)
+                    imgs_all_test.append(imgs.detach().numpy())
+                    i+= 1
+                    if i == 6:
+                        break
+                imgs_all_test = np.array(imgs_all_test)
 
-            
-
+                # save images
+                img_f=open(path+"/images.txt",'ab')
+                print(np.reshape(imgs_all_test, [imgs_all_test.shape[0]*imgs_all_test.shape[1], -1]).shape)
+                np.savetxt(img_f,np.reshape(imgs_all_test, [imgs_all_test.shape[0]*imgs_all_test.shape[1], -1]))
+                img_f.close()
                 # [b, update_steps+1]
-                accs = np.array(accs_all_test).mean(axis=0).astype(np.float16)
+                
                 print('Test acc:', accs)
 
 

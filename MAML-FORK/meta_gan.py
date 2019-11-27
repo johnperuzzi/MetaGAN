@@ -128,8 +128,9 @@ class MetaGAN(nn.Module):
 
         return (s_weights, n_weights, d_weights), g_weights
 
-    def single_task_forward(self, x_spt, y_spt, x_qry, y_qry, nets=None):
-
+    def single_task_forward(self, x_spt, y_spt, x_qry, y_qry, nets=None, images=False):
+        support_sz, c_, h, w = x_spt.size()
+        
         corrects = {key: np.zeros(self.update_steps + 1) for key in 
                         ["q_discrim", # number of meta-test (query) images correctly discriminated
                         "q_nway", # number of meta-test (query) images correctly classified
