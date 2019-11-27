@@ -180,6 +180,8 @@ class Generator(nn.Module):
                 bn_idx += 2
             elif name is 'random_proj':
                 # gonna need to change "x" in class def
+                # to add conditioning, append conditioning info to x and then replace y with the new labels
+                # also need to change the definition of w according to the new size of x
                 hidden_sz, channels, height_width = param
                 x = torch.randn((batch_sz, hidden_sz), requires_grad=True) # could try this with false
                 y = torch.randint(low=0, high=self.num_classes, size=(batch_sz,))
