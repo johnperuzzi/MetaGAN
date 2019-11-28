@@ -223,12 +223,13 @@ class MetaGAN(nn.Module):
             corrects['q_nway'][k] += q_nway_correct
             corrects['q_discrim'][k] += q_discrim_correct
 
+
         # final gen-discrim and gen-nway accuracy
         with torch.no_grad():
             x_gen, y_gen = self.generator(x_spt, vars=gen_weights, bn_training=False) 
             gen_nway_correct, gen_discrim_correct = self.get_num_corrects(real=False, y=y_gen, x=x_gen, weights=net_weights)
-            corrects['q_nway'][-1] += q_nway_correct
-            corrects['q_discrim'][-1] += q_discrim_correct
+            corrects['gen_nway'][-1] += gen_nway_correct
+            corrects['gen_discrim'][-1] += gen_discrim_correct
 
         # meta-test loss
         q_class_logits = self.pred(x_qry, weights=net_weights, discrim=False)
@@ -250,13 +251,21 @@ class MetaGAN(nn.Module):
         tasks_per_batch, support_sz, c_, h, w = x_spt.size()
         query_sz = x_qry.size(1)
 
+
         loss_q = 0
-        corrects = np.zeros(self.update_steps + 1)
+        corrects = {key: np.zeros(self.update_steps + 1) for key in 
+                        ["q_discrim", # number of meta-test (query) images correctly discriminated
+                        "q_nway", # number of meta-test (query) images correctly classified
+                        "gen_discrim", # number of generated images correctly discriminated
+                        "gen_nway"]} # number of generated images correctly classified
         
         for i in range(tasks_per_batch):
             loss_q_tmp, corrects_tmp = self.single_task_forward(x_spt[i], y_spt[i], x_qry[i], y_qry[i], images=False)
             loss_q += loss_q_tmp
-            corrects += corrects_tmp["q_nway"]
+            corrects["q_discrim"] += corrects_tmp["q_discrim"]
+            corrects["q_nway"] += corrects_tmp["q_nway"]
+            corrects["gen_discrim"] += corrects_tmp["gen_discrim"]
+            corrects["gen_nway"] += corrects_tmp["gen_nway"]
 
         # end of all tasks
         # sum over final losses on query set across all tasks
@@ -267,7 +276,14 @@ class MetaGAN(nn.Module):
         loss_q.backward()
         self.meta_optim.step()
 
-        accs = corrects / (query_sz * tasks_per_batch)
+        accs = {}
+        accs["q_nway"] = corrects["q_nway"] / (query_sz * tasks_per_batch)
+        accs["q_discrim"] = corrects["q_discrim"] / (query_sz * tasks_per_batch)
+        # right now i assume that we are generating the support numer of samples (which we do)
+        # if we ever change this then this code will need to change as well
+        accs["gen_discrim"] = corrects["gen_discrim"] / (support_sz * tasks_per_batch)
+        accs["gen_nway"] = corrects["gen_nway"] / (support_sz * tasks_per_batch)
+
 
         return accs
 

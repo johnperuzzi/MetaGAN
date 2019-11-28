@@ -28,6 +28,24 @@ def mkdir_p(path):
             pass
         else: raise
 
+def save_accs(path, accs):
+    file = open(path +  '/q_nway_accuracies.txt', 'ab')
+    np.savetxt(file, np.array([accs["q_nway"]]))
+    file.close()
+
+    file = open(path +  '/q_discrim_accuracies.txt', 'ab')
+    np.savetxt(file, np.array([accs["q_discrim"]]))
+    file.close()
+
+    file = open(path +  '/gen_nway_accuracies.txt', 'ab')
+    np.savetxt(file, np.array([accs["gen_nway"]]))
+    file.close()
+
+    file = open(path +  '/gen_discrim_accuracies.txt', 'ab')
+    np.savetxt(file, np.array([accs["gen_discrim"]]))
+    file.close()
+
+
 def main():
 
     torch.manual_seed(222)
@@ -100,17 +118,19 @@ def main():
                              k_query=args.k_qry,
                              batchsz=100, resize=args.img_sz)
     
-    now = datetime.now().replace(second=0, microsecond=0)
-    path = "results/" + str(now)
-    mkdir_p(path)
 
-    file = open(path +  '/architecture.txt', 'w+')
-    file.write("shared_config = " + json.dumps(shared_config) + "\n" + 
-        "nway_config = " + json.dumps(nway_config) + "\n" +
-        "discriminator_config = " + json.dumps(discriminator_config) + "\n" + 
-        "gen_config = " + json.dumps(gen_config)
-        )
-    file.close()
+    save_model = not args.no_save
+    if save_model:
+        now = datetime.now().replace(second=0, microsecond=0)
+        path = "results/" + str(now)
+        mkdir_p(path)
+        file = open(path +  '/architecture.txt', 'w+')
+        file.write("shared_config = " + json.dumps(shared_config) + "\n" + 
+            "nway_config = " + json.dumps(nway_config) + "\n" +
+            "discriminator_config = " + json.dumps(discriminator_config) + "\n" + 
+            "gen_config = " + json.dumps(gen_config)
+            )
+        file.close()
 
     
     for epoch in range(args.epoch//10000):
@@ -123,10 +143,11 @@ def main():
             accs = mamlGAN(x_spt, y_spt, x_qry, y_qry)
 
             if step % 30 == 0:
-                acc_file = open(path +  '/accuracies.txt', 'ab')
-                print('step:', step, '\ttraining acc:', accs)
-                np.savetxt(acc_file, np.array([accs]))
-                acc_file.close()
+                print("step " + str(step))
+                for key in accs.keys():
+                    print(key + ": " + str(accs[key]))
+                if save_model:
+                    save_accs(path, accs)
 
             if step % 500 == 0:  # evaluation
                 db_test = DataLoader(mini_test, 1, shuffle=True, num_workers=1, pin_memory=True)
@@ -144,10 +165,12 @@ def main():
                 imgs_all_test = np.array(imgs_all_test)
 
                 # save images
-                img_f=open(path+"/images_step" + str(step) + ".txt",'ab')
-                some_imgs = np.reshape(imgs_all_test, [imgs_all_test.shape[0]*imgs_all_test.shape[1], -1])[0:50]
-                np.savetxt(img_f,some_imgs)
-                img_f.close()
+                if save_model:
+                    img_f=open(path+"/images_step" + str(step) + ".txt",'ab')
+                    some_imgs = np.reshape(imgs_all_test, [imgs_all_test.shape[0]*imgs_all_test.shape[1], -1])[0:50]
+                    np.savetxt(img_f,some_imgs)
+                    img_f.close()
+
                 # [b, update_steps+1]
                 
                 print('Test acc:', accs)
@@ -167,6 +190,7 @@ if __name__ == '__main__':
     argparser.add_argument('--update_lr', type=float, help='task-level inner update learning rate', default=0.01)
     argparser.add_argument('--update_steps', type=int, help='task-level inner update steps', default=5)
     argparser.add_argument('--update_steps_test', type=int, help='update steps for finetunning', default=10)
+    argparser.add_argument('--no_save', default=False, action='store_true', help='Bool type. Pass to not save (right now we save by default)')
 
     args = argparser.parse_args()
 
