@@ -11,7 +11,6 @@ import matplotlib.image as mpimg
 import json
 from datetime import datetime
 
-
 from meta_gan import MetaGAN
 
 
@@ -113,26 +112,27 @@ def main():
         )
     file.close()
 
-    acc_file = open(path +  '/accuracies.txt', 'ab')
+    
     for epoch in range(args.epoch//10000):
         # fetch meta_batchsz num of episode each time
         db = DataLoader(mini, args.tasks_per_batch, shuffle=True, num_workers=1, pin_memory=True)
 
         for step, (x_spt, y_spt, x_qry, y_qry) in enumerate(db):
-            x_spt, y_spt, x_qry, y_qry = x_spt.to(device), y_spt.to(device), x_qry.to(device), y_qry.to(device)
 
+            x_spt, y_spt, x_qry, y_qry = x_spt.to(device), y_spt.to(device), x_qry.to(device), y_qry.to(device)
             accs = mamlGAN(x_spt, y_spt, x_qry, y_qry)
 
             if step % 30 == 0:
+                acc_file = open(path +  '/accuracies.txt', 'ab')
                 print('step:', step, '\ttraining acc:', accs)
                 np.savetxt(acc_file, np.array([accs]))
-            acc_file.close()
-            acc_file = open(path +  '/accuracies.txt', 'w+')
+                acc_file.close()
+
             if step % 500 == 0:  # evaluation
                 db_test = DataLoader(mini_test, 1, shuffle=True, num_workers=1, pin_memory=True)
                 accs_all_test = []
                 imgs_all_test = []
-                i = 0
+
                 for x_spt, y_spt, x_qry, y_qry in db_test:
                     x_spt, y_spt, x_qry, y_qry = x_spt.squeeze(0).to(device), y_spt.squeeze(0).to(device), \
                                                  x_qry.squeeze(0).to(device), y_qry.squeeze(0).to(device)
@@ -140,15 +140,13 @@ def main():
                     accs, imgs = mamlGAN.finetunning(x_spt, y_spt, x_qry, y_qry)
                     accs_all_test.append(accs)
                     imgs_all_test.append(imgs.detach().numpy())
-                    i+= 1
-                    if i == 6:
-                        break
+
                 imgs_all_test = np.array(imgs_all_test)
 
                 # save images
-                img_f=open(path+"/images.txt",'ab')
-                print(np.reshape(imgs_all_test, [imgs_all_test.shape[0]*imgs_all_test.shape[1], -1]).shape)
-                np.savetxt(img_f,np.reshape(imgs_all_test, [imgs_all_test.shape[0]*imgs_all_test.shape[1], -1]))
+                img_f=open(path+"/images_step" + str(step) + ".txt",'ab')
+                some_imgs = np.reshape(imgs_all_test, [imgs_all_test.shape[0]*imgs_all_test.shape[1], -1])[0:50]
+                np.savetxt(img_f,some_imgs)
                 img_f.close()
                 # [b, update_steps+1]
                 
