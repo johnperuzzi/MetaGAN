@@ -262,6 +262,7 @@ class MetaGAN(nn.Module):
         for i in range(tasks_per_batch):
             loss_q_tmp, corrects_tmp = self.single_task_forward(x_spt[i], y_spt[i], x_qry[i], y_qry[i], images=False)
             loss_q += loss_q_tmp
+            assert len(corrects_tmp.keys()) == len(corrects.keys())
             for key in corrects.keys():
                 corrects[key] += corrects_tmp[key]
 
