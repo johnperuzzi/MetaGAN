@@ -262,10 +262,8 @@ class MetaGAN(nn.Module):
         for i in range(tasks_per_batch):
             loss_q_tmp, corrects_tmp = self.single_task_forward(x_spt[i], y_spt[i], x_qry[i], y_qry[i], images=False)
             loss_q += loss_q_tmp
-            corrects["q_discrim"] += corrects_tmp["q_discrim"]
-            corrects["q_nway"] += corrects_tmp["q_nway"]
-            corrects["gen_discrim"] += corrects_tmp["gen_discrim"]
-            corrects["gen_nway"] += corrects_tmp["gen_nway"]
+            for key in corrects.keys():
+                corrects[key] += corrects_tmp[key]
 
         # end of all tasks
         # sum over final losses on query set across all tasks
