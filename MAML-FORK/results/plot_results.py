@@ -1,0 +1,40 @@
+import numpy as np
+from matplotlib import pyplot as plt
+import  argparse
+
+
+def main():
+	folder = args.folder
+
+	q_nway_accuracies = np.genfromtxt(folder + '/q_nway_accuracies.txt')[:,-1]
+	print(q_nway_accuracies)
+	q_discrim_accuracies = np.genfromtxt(folder + '/q_discrim_accuracies.txt')[:,-1]
+	gen_nway_accuracies = np.genfromtxt(folder + '/gen_nway_accuracies.txt')[:,-1]
+	gen_discrim_accuracies = np.genfromtxt(folder + '/gen_discrim_accuracies.txt')[:,-1]
+
+
+	if args.q_nway:
+		plt.plot(q_nway_accuracies, label = 'query nway')
+		# plt.label("q_nway")
+	if args.q_discrim:
+		plt.plot(q_discrim_accuracies, label = 'query discrim')
+		# plt.label("q_nway")
+	if args.gen_nway:
+		plt.plot(gen_nway_accuracies, label = 'gen nway')
+		# plt.label("q_nway")
+	if args.gen_discrim:
+		plt.plot(gen_discrim_accuracies, label = 'gen discrim')
+		# plt.label("q_nway")
+	plt.legend()
+	plt.show()
+
+if __name__ == '__main__':
+    argparser = argparse.ArgumentParser()
+    argparser.add_argument('--folder', type=str, help='folder with model accs to plot', required=True)
+    argparser.add_argument('--q_nway', default=False, action='store_true', help='Bool type. Pass to plot q_nway accs')
+    argparser.add_argument('--q_discrim', default=False, action='store_true', help='Bool type. Pass to plot q_discrim accs')
+    argparser.add_argument('--gen_nway', default=False, action='store_true', help='Bool type. Pass to plot gen_nway accs')
+    argparser.add_argument('--gen_discrim', default=False, action='store_true', help='Bool type. Pass to plot gen_discrim accs')
+    args = argparser.parse_args()
+
+    main()

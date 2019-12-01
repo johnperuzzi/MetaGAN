@@ -71,9 +71,9 @@ class Generator(nn.Module):
                 self.vars_bn.extend([running_mean, running_var])
             elif name is "random_proj":
                 # [ch_in, ch_out, img_sz]
-                hidden_sz, channels, height_width = param
+                hidden_sz, emb_size, channels, height_width = param
 
-                w = nn.Parameter(torch.ones(height_width*height_width*channels, hidden_sz))
+                w = nn.Parameter(torch.ones(height_width*height_width*channels, hidden_sz + emb_size))
                 torch.nn.init.kaiming_normal_(w)
 
                 self.vars.append(w)
@@ -86,10 +86,6 @@ class Generator(nn.Module):
                 continue
             else:
                 raise NotImplementedError
-
-
-
-
 
 
     def extra_repr(self):
@@ -115,7 +111,7 @@ class Generator(nn.Module):
                 info += tmp + '\n'
 
             elif name is 'random_proj':
-                info += 'random_proj:(hidden_sz:%d, height_width:%d, ch_out:%d)'%(param[0], param[1], param[2]) + '\n'
+                info += 'random_proj:(hidden_sz:%d, embedding_size:%d, height_width:%d, ch_out:%d)'%(param[0], param[1], param[2], param[3]) + '\n'
 
 
             elif name is 'avg_pool2d':
@@ -134,13 +130,13 @@ class Generator(nn.Module):
 
 
 
-    def forward(self, x, vars=None, bn_training=True):
+    def forward(self, x, y, vars=None, bn_training=True):
         """
         This function can be called by finetunning, however, in finetunning, we dont wish to update
         running_mean/running_var. Thought weights/bias of bn is updated, it has been separated by fast_weights.
         Indeed, to not update running_mean/running_var, we need set update_bn_statistics=False
         but weight/bias will be updated and not dirty initial theta parameters via fast_weiths.
-        :param x: [b, 1, 28, 28]
+        :param x: [b, 512]
         :param vars:
         :param bn_training: set False to not update
         :return: x, loss, likelihood, kld
@@ -182,9 +178,10 @@ class Generator(nn.Module):
                 # gonna need to change "x" in class def
                 # to add conditioning, append conditioning info to x and then replace y with the new labels
                 # also need to change the definition of w according to the new size of x
-                hidden_sz, channels, height_width = param
-                x = torch.randn((batch_sz, hidden_sz), requires_grad=True) # could try this with false
-                y = torch.randint(low=0, high=self.num_classes, size=(batch_sz,))
+                hidden_sz, emb_size, channels, height_width = param
+                rand = torch.randn((batch_sz, hidden_sz), requires_grad=True)
+                x = torch.cat((rand, x), -1)
+                # y = torch.randint(low=0, high=self.num_classes, size=(batch_sz,))
 
                 w, b = vars[idx], vars[idx + 1]
                 x = F.linear(x, w, b)
@@ -221,7 +218,7 @@ class Generator(nn.Module):
         assert idx == len(vars)
         assert bn_idx == len(self.vars_bn)
 
-
+        # right now still returning y so that we can easilly extend to generating diff nums of examples by adjusting y in here
         return x, y
 
 

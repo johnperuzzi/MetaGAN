@@ -6,11 +6,10 @@ from    torch.utils.data import DataLoader
 from    torch.optim import lr_scheduler
 import  random, sys, pickle
 import  argparse
-import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
+from matplotlib import pyplot as plt
+from PIL import Image
 import json
 from datetime import datetime
-
 from meta_gan import MetaGAN
 
 
@@ -44,6 +43,29 @@ def save_accs(path, accs):
     file = open(path +  '/gen_discrim_accuracies.txt', 'ab')
     np.savetxt(file, np.array([accs["gen_discrim"]]))
     file.close()
+
+
+def save_imgs(path, imgs, step):
+    # save raw txt files
+    img_f=open(path+"/images_step" + str(step) + ".txt",'ab')
+    some_imgs = np.reshape(imgs, [imgs.shape[0]*imgs.shape[1], -1])[0:50]
+    np.savetxt(img_f,some_imgs)
+    img_f.close()
+
+    os.environ['KMP_DUPLICATE_LIB_OK']='True'
+    # save png of imgs
+    i = 0
+    for flat_img in some_imgs:
+        img = flat_img.reshape(3,84,84).swapaxes(0,1).swapaxes(1,2)
+        im = ((img - np.min(img))*255/(np.max(img - np.min(img)))).astype(np.uint8)
+        if i < 49:
+            plt.subplot(7, 7, 1 + i)
+            plt.axis('off')
+            plt.imshow(im)
+        i += 1
+    plt.savefig(path+"/images_step" + str(step) + ".png")
+    plt.close()
+
 
 
 def main():
@@ -91,7 +113,7 @@ def main():
     ]
 
     gen_config = [
-        ('random_proj', [100, 32, 21]), # [latent_dim, ch_out, h_out/w_out]
+        ('random_proj', [100, 512, 32, 21]), # [latent_dim, embedding_dim, ch_out, h_out/w_out]
         # img: (32, 21, 21)
         ('convt2d', [32, 16, 4, 4, 2, 1]), # [ch_in, ch_out, kernel_sz, kernel_sz, stride, padding]
         ('bn', [16]),
@@ -153,7 +175,6 @@ def main():
                 db_test = DataLoader(mini_test, 1, shuffle=True, num_workers=1, pin_memory=True)
                 accs_all_test = []
                 imgs_all_test = []
-
                 for x_spt, y_spt, x_qry, y_qry in db_test:
                     x_spt, y_spt, x_qry, y_qry = x_spt.squeeze(0).to(device), y_spt.squeeze(0).to(device), \
                                                  x_qry.squeeze(0).to(device), y_qry.squeeze(0).to(device)
@@ -164,14 +185,8 @@ def main():
 
                 imgs_all_test = np.array(imgs_all_test)
 
-                # save images
                 if save_model:
-                    img_f=open(path+"/images_step" + str(step) + ".txt",'ab')
-                    some_imgs = np.reshape(imgs_all_test, [imgs_all_test.shape[0]*imgs_all_test.shape[1], -1])[0:50]
-                    np.savetxt(img_f,some_imgs)
-                    img_f.close()
-
-                # [b, update_steps+1]
+                    save_imgs(path, imgs_all_test, step)
                 
                 print('Test acc:', accs)
 
@@ -191,6 +206,7 @@ if __name__ == '__main__':
     argparser.add_argument('--update_steps', type=int, help='task-level inner update steps', default=5)
     argparser.add_argument('--update_steps_test', type=int, help='update steps for finetunning', default=10)
     argparser.add_argument('--no_save', default=False, action='store_true', help='Bool type. Pass to not save (right now we save by default)')
+    argparser.add_argument('--learn_inner_lr', default=False, action='store_true', help='Bool type. Pass to learn inner lr')
 
     args = argparser.parse_args()
 

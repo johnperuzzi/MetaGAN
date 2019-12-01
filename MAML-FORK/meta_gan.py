@@ -33,6 +33,7 @@ class MetaGAN(nn.Module):
         self.tasks_per_batch = args.tasks_per_batch
         self.update_steps = args.update_steps
         self.update_steps_test = args.update_steps_test
+        self.learn_inner_lr = args.learn_inner_lr
 
         self.conditioner = Conditioner()
 
@@ -48,6 +49,22 @@ class MetaGAN(nn.Module):
 
         params = list(self.shared_net.parameters()) + list(self.nway_net.parameters()) + list(self.discrim_net.parameters())
         params += list(self.generator.parameters())
+
+        cuda = torch.cuda.is_available()
+        self.FloatTensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor 
+
+        if self.learn_inner_lr:
+            self.learned_lrs = []
+            for i in range(self.update_steps):
+                gen_lrs =[Variable(self.FloatTensor(1).fill_(self.update_lr), requires_grad=True)]*len(self.generator.parameters())
+                shared_lrs = [Variable(self.FloatTensor(1).fill_(self.update_lr), requires_grad=True)]*len(self.shared_net.parameters())
+                nway_lrs = [Variable(self.FloatTensor(1).fill_(self.update_lr), requires_grad=True)]*len(self.nway_net.parameters())
+                discrim_lrs = [Variable(self.FloatTensor(1).fill_(self.update_lr), requires_grad=True)]*len(self.discrim_net.parameters())
+
+                self.learned_lrs.append((shared_lrs, nway_lrs, discrim_lrs, gen_lrs))
+                for param_list in self.learned_lrs[i]:
+                    params += param_list
+
         self.meta_optim = optim.Adam(params, lr=self.meta_lr)
 
         self.real_val = 1.0 # requires that real_val > fake_val
@@ -147,6 +164,27 @@ class MetaGAN(nn.Module):
 
         return (s_weights, n_weights, d_weights), g_weights
 
+    # Returns new weights by backpropping their affect on the losses.
+    # Losses and weights should be (shared, nway, descrim)
+    def update_weights_learned_lr(self, net_losses, net_weights, gen_loss, gen_weights, learned_lrs):
+        shared_loss, nway_loss, discrim_loss = net_losses
+        shared_weights, nway_weights, discrim_weights = net_weights
+        shared_lrs, nway_lrs, discrim_lrs, gen_lrs = learned_lrs
+
+        n_grad = torch.autograd.grad(nway_loss, nway_weights, retain_graph=True)
+        n_weights = [w - lr * grad for grad, w, lr in zip(n_grad, nway_weights, nway_lrs)]
+
+        d_grad = torch.autograd.grad(discrim_loss, discrim_weights, retain_graph=True)
+        d_weights = [w - lr * grad for grad, w, lr in zip(d_grad, discrim_weights, discrim_lrs)]
+
+        s_grad = torch.autograd.grad(shared_loss, shared_weights, retain_graph=True)
+        s_weights = [w - lr * grad for grad, w, lr in zip(s_grad, shared_weights, shared_lrs)]
+
+        g_grad = torch.autograd.grad(gen_loss, gen_weights)
+        g_weights = [w - lr * grad for grad, w, lr in zip(g_grad, gen_weights, gen_lrs)]
+
+        return (s_weights, n_weights, d_weights), g_weights
+
     def single_task_forward(self, x_spt, y_spt, x_qry, y_qry, nets=None, images=False):
         support_sz, c_, h, w = x_spt.size()
         
@@ -168,8 +206,7 @@ class MetaGAN(nn.Module):
         # for net in nets:
         #     net_weights.append([w.clone() for w in net.parameters()])
 
-        cuda = torch.cuda.is_available()
-        FloatTensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor 
+
 
         # this is the meta-test loss and accuracy before first update
         q_nway, q_discrim = self.get_num_corrects(real=True, y=y_qry, weights=[None, None, None], x=x_qry)
@@ -178,18 +215,17 @@ class MetaGAN(nn.Module):
 
 
         # Generate class level image embeddings
-        # with torch.no_grad():
-        #     image_embeddings = self.conditioner(x_spt)
-        #     image_embeddings = image_embeddings.view(self.n_way, self.k_spt, -1)
-        #     class_image_embeddings = torch.mean(image_embeddings, 1)
+        with torch.no_grad():
+            image_embeddings = self.conditioner(x_spt)
+            image_embeddings = image_embeddings.view(self.n_way, self.k_spt, -1)
+            class_image_embeddings = torch.mean(image_embeddings, 1)
 
 
-        real = Variable(FloatTensor(support_sz, 1).fill_(self.real_val), requires_grad=True)
-        fake = Variable(FloatTensor(support_sz, 1).fill_(self.fake_val), requires_grad=True)
-
+        real = Variable(self.FloatTensor(support_sz, 1).fill_(self.real_val), requires_grad=True)
+        fake = Variable(self.FloatTensor(support_sz, 1).fill_(self.fake_val), requires_grad=True)
         # run the i-th task and compute loss for k-th inner update
         for k in range(1, self.update_steps + 1):
-            x_gen, y_gen = self.generator(x_spt, vars=gen_weights, bn_training=True) 
+            x_gen, y_gen = self.generator(class_image_embeddings, y_spt, vars=gen_weights, bn_training=True) 
 
             # run discriminator on real data
             real_class_logits, real_discrim_preds = self.pred(x_spt, weights=net_weights)
@@ -208,7 +244,10 @@ class MetaGAN(nn.Module):
 
             # 2. compute grad on theta_pi
             net_losses = (shared_loss, nway_loss, discrim_loss)
-            net_weights, gen_weights = self.update_weights(net_losses, net_weights, gen_loss, gen_weights)
+            if self.learn_inner_lr:
+                net_weights, gen_weights = self.update_weights_learned_lr(net_losses, net_weights, gen_loss, gen_weights, self.learned_lrs[k-1])
+            else:
+                net_weights, gen_weights = self.update_weights(net_losses, net_weights, gen_loss, gen_weights)
 
 
             # gen-nway and gen-discrim accuracy
@@ -226,7 +265,7 @@ class MetaGAN(nn.Module):
 
         # final gen-discrim and gen-nway accuracy
         with torch.no_grad():
-            x_gen, y_gen = self.generator(x_spt, vars=gen_weights, bn_training=False) 
+            x_gen, y_gen = self.generator(class_image_embeddings, y_spt, vars=gen_weights, bn_training=False) 
             gen_nway_correct, gen_discrim_correct = self.get_num_corrects(real=False, y=y_gen, x=x_gen, weights=net_weights)
             corrects['gen_nway'][-1] += gen_nway_correct
             corrects['gen_discrim'][-1] += gen_discrim_correct
