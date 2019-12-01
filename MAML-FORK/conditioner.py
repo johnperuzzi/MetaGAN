@@ -24,5 +24,7 @@ class Conditioner(nn.Module):
         not scaled.
         """
         resnet_input = nn.functional.interpolate(x, size=224)
-        resnet_input = resnet_input.repeat(1, 3, 1, 1)
+        # Hacky way I suppose to deal with the possibility of 1 input channel or 3
+        if resnet_input.shape[1] == 1:
+            resnet_input = resnet_input.repeat(1, 3, 1, 1)
         return self.embedding(resnet_input)
