@@ -80,8 +80,6 @@ def main(args):
 
         # set traning=True to update running_mean, running_variance, bn_weights, bn_bias
         accs = mamlGAN(x_spt, y_spt, x_qry, y_qry)
-        print("hey")
-        print(accs)
 
         if step % 50 == 0:
             print('step:', step, '\ttraining acc:', accs)
@@ -100,8 +98,6 @@ def main(args):
                     accs.append( test_acc )
 
             # [b, update_steps+1]
-            print("yo I think we're testing now")
-            print(accs)
             accs = np.array(accs).mean(axis=0).astype(np.float16)
             print('Test acc:', accs)
 
