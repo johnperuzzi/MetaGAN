@@ -44,7 +44,7 @@ def main(args):
     ]
 
     gen_config = [
-        ('random_proj', [100, 64, 7]), # [latent_dim, ch_out, h_out/w_out]
+        ('random_proj', [100, 512, 64, 7]), # [latent_dim, emb_size, ch_out, h_out/w_out]
         # img: (64, 7, 7)
         ('convt2d', [64, 32, 4, 4, 2, 1]), # [ch_in, ch_out, kernel_sz, kernel_sz, stride, padding]
         ('bn', [32]),
@@ -116,6 +116,7 @@ if __name__ == '__main__':
     argparser.add_argument('--update_lr', type=float, help='task-level inner update learning rate', default=0.4)
     argparser.add_argument('--update_steps', type=int, help='task-level inner update steps', default=5)
     argparser.add_argument('--update_steps_test', type=int, help='update steps for finetunning', default=10)
+    argparser.add_argument('--learn_inner_lr', type=bool, help='whether to learn the inner update lr', default=True)
 
     args = argparser.parse_args()
 

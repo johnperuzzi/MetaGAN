@@ -24,4 +24,5 @@ class Conditioner(nn.Module):
         not scaled.
         """
         resnet_input = nn.functional.interpolate(x, size=224)
+        resnet_input = resnet_input.repeat(1, 3, 1, 1)
         return self.embedding(resnet_input)
