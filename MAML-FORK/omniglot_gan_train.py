@@ -94,8 +94,8 @@ def main(args):
 
                 # split to single task each time
                 for x_spt_one, y_spt_one, x_qry_one, y_qry_one in zip(x_spt, y_spt, x_qry, y_qry):
-                    test_acc = mamlGAN.finetunning(x_spt_one, y_spt_one, x_qry_one, y_qry_one)
-                    accs.append( test_acc )
+                    test_acc, _ = mamlGAN.finetunning(x_spt_one, y_spt_one, x_qry_one, y_qry_one)
+                    accs.append( test_acc)
 
             # [b, update_steps+1]
             accs = np.array(accs).mean(axis=0).astype(np.float16)
