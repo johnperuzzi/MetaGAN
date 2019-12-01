@@ -179,7 +179,10 @@ class Generator(nn.Module):
                 # to add conditioning, append conditioning info to x and then replace y with the new labels
                 # also need to change the definition of w according to the new size of x
                 hidden_sz, emb_size, channels, height_width = param
-                rand = torch.randn((batch_sz, hidden_sz), requires_grad=True)
+                cuda = torch.cuda.is_available()
+                FloatTensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor 
+                rand = FloatTensor((batch_sz, hidden_sz))
+                torch.randn((batch_sz, hidden_sz), out=rand, requires_grad=True)
                 x = torch.cat((rand, x), -1)
                 # y = torch.randint(low=0, high=self.num_classes, size=(batch_sz,))
 
