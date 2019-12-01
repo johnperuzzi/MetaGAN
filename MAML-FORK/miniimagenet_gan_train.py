@@ -181,7 +181,7 @@ def main():
 
                     accs, imgs = mamlGAN.finetunning(x_spt, y_spt, x_qry, y_qry)
                     accs_all_test.append(accs)
-                    imgs_all_test.append(imgs.detach().numpy())
+                    imgs_all_test.append(imgs.cpu().detach().numpy())
 
                 imgs_all_test = np.array(imgs_all_test)
 
