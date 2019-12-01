@@ -29,6 +29,7 @@ def main():
 	plt.show()
 
 if __name__ == '__main__':
+	# eg. python plot_results.py --folder='2019-12-01 06:21:00' --q_nway --q_discrim --gen_nway --gen_discrim
     argparser = argparse.ArgumentParser()
     argparser.add_argument('--folder', type=str, help='folder with model accs to plot', required=True)
     argparser.add_argument('--q_nway', default=False, action='store_true', help='Bool type. Pass to plot q_nway accs')
