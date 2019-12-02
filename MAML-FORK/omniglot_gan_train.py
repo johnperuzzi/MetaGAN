@@ -21,12 +21,12 @@ def main(args):
         ('conv2d', [64, 64, 3, 3, 2, 0]),
         ('relu', [True]),
         ('bn', [64]),
-        ('conv2d', [64, 64, 3, 3, 2, 0]),
-        ('relu', [True]),
-        ('bn', [64]),
     ]
 
     nway_config = [
+        ('conv2d', [64, 64, 3, 3, 2, 0]),
+        ('relu', [True]),
+        ('bn', [64]),
         ('conv2d', [64, 64, 2, 2, 1, 0]),
         ('relu', [True]),
         ('bn', [64]),
@@ -35,6 +35,9 @@ def main(args):
     ]
 
     discriminator_config = [
+        ('conv2d', [64, 64, 3, 3, 2, 0]),
+        ('relu', [True]),
+        ('bn', [64]),
         ('conv2d', [64, 64, 2, 2, 1, 0]),
         ('relu', [True]),
         ('bn', [64]),
