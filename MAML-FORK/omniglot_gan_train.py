@@ -95,7 +95,6 @@ def main(args):
         ('bn', [64]),
         ('flatten', []),
         ('linear', [1, 64]),
-        ('sigmoid', [True])
     ]
 
     gen_config = [
