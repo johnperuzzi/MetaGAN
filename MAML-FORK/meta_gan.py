@@ -141,7 +141,7 @@ class MetaGAN(nn.Module):
         if type(discrim_preds) == type(None):
             return nway_loss
 
-        discrim_loss = F.mse_loss(discrim_preds, y_discrim)
+        discrim_loss = F.binary_cross_entropy(discrim_preds, y_discrim)
         return nway_loss, discrim_loss
 
     # Returns new weights by backpropping their affect on the losses.
@@ -221,8 +221,8 @@ class MetaGAN(nn.Module):
             class_image_embeddings = torch.mean(image_embeddings, 1)
 
 
-        real = Variable(self.FloatTensor(support_sz, 1).fill_(self.real_val), requires_grad=True)
-        fake = Variable(self.FloatTensor(support_sz, 1).fill_(self.fake_val), requires_grad=True)
+        real = Variable(self.FloatTensor(support_sz, 1).fill_(self.real_val), requires_grad=False)
+        fake = Variable(self.FloatTensor(support_sz, 1).fill_(self.fake_val), requires_grad=False)
         # run the i-th task and compute loss for k-th inner update
         for k in range(1, self.update_steps + 1):
             x_gen, y_gen = self.generator(class_image_embeddings, y_spt, vars=gen_weights, bn_training=True) 
