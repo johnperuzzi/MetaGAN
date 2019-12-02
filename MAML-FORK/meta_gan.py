@@ -227,7 +227,7 @@ class MetaGAN(nn.Module):
         discrim_weights = [w - lr * grad for grad, w, lr in zip(d_grad, discrim_weights, discrim_lrs)]
 
         # Clipping for wasserstein loss 
-        for weight in d_weights:
+        for weight in discrim_weights:
             weight.data.clamp_(-0.01, 0.01)
 
         if not only_discrim:
