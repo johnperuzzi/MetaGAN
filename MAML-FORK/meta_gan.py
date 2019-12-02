@@ -8,6 +8,7 @@ import  numpy as np
 
 from    learner import Learner
 from    generator import Generator
+from c_discriminator import C_Discriminator
 from    copy import deepcopy
 from torch.autograd import Variable
 from conditioner import Conditioner
@@ -34,6 +35,7 @@ class MetaGAN(nn.Module):
         self.update_steps = args.update_steps
         self.update_steps_test = args.update_steps_test
         self.learn_inner_lr = args.learn_inner_lr
+        self.condition_discrim = args.condition_discrim
 
         self.conditioner = Conditioner()
 
@@ -45,7 +47,11 @@ class MetaGAN(nn.Module):
 
         self.shared_net = Learner(shared_config, args.img_c, args.img_sz)
         self.nway_net = Learner(nway_config, args.img_c, args.img_sz)
-        self.discrim_net = Learner(discriminator_config, args.img_c, args.img_sz)
+
+        if self.condition_discrim:
+            self.discrim_net = C_Discriminator(discriminator_config, args.img_c, args.img_sz)
+        else:
+            self.discrim_net = Learner(discriminator_config, args.img_c, args.img_sz)
 
         params = list(self.shared_net.parameters()) + list(self.nway_net.parameters()) + list(self.discrim_net.parameters())
         params += list(self.generator.parameters())
@@ -110,8 +116,26 @@ class MetaGAN(nn.Module):
             return class_logits
 
         discrim_preds = discrim_net(shared_layer, vars=discrim_weights, bn_training=True)
+
         return class_logits, discrim_preds
- 
+
+    # like pred() but conditioned by class labels / class embeddings
+    def conditioned_pred(self, x, labels, weights=[None, None, None], nets=None, discrim=True):
+        if type(nets) == type(None):
+            nets = [self.shared_net, self.nway_net, self.discrim_net]
+
+        shared_weights, nway_weights, discrim_weights = weights
+        shared_net, nway_net, discrim_net = nets
+
+        shared_layer = shared_net(x, vars=shared_weights, bn_training=True)
+        class_logits = nway_net(shared_layer, vars=nway_weights, bn_training=True)
+        if not discrim:
+            return class_logits
+
+        discrim_preds = discrim_net(shared_layer, labels, vars=discrim_weights, bn_training=True)
+
+        return class_logits, discrim_preds
+
     # Returns the number of correctly classified and discriminated examples.
     # "real" indicates if we are using real examples or generated examples.
     # "y" is the true classification of the examples.
@@ -121,7 +145,10 @@ class MetaGAN(nn.Module):
     def get_num_corrects(self, real, y, x=None, weights=None, class_logits=None, discrim_preds=None):
         with torch.no_grad():
             if type(class_logits) == type(None):
-                class_logits, discrim_preds = self.pred(x, weights=weights)
+                if self.condition_discrim:
+                    class_logits, discrim_preds = self.conditioned_pred(x, y, weights=weights)
+                else:
+                    class_logits, discrim_preds = self.pred(x, weights=weights)
 
             nway_correct = torch.eq(class_logits.argmax(dim=1), y).sum().item()
 
@@ -227,12 +254,14 @@ class MetaGAN(nn.Module):
         for k in range(1, self.update_steps + 1):
             x_gen, y_gen = self.generator(class_image_embeddings, y_spt, vars=gen_weights, bn_training=True) 
 
-            # run discriminator on real data
-            real_class_logits, real_discrim_preds = self.pred(x_spt, weights=net_weights)
-            real_nway_loss, real_discrim_loss = self.loss(real_class_logits, y_spt, real_discrim_preds, real)
+            if self.condition_discrim:
+                real_class_logits, real_discrim_preds = self.conditioned_pred(x_spt, y_spt, weights=net_weights)
+                gen_class_logits, gen_discrim_preds = self.conditioned_pred(x_gen, y_gen, weights=net_weights)
+            else:
+                real_class_logits, real_discrim_preds = self.pred(x_spt, weights=net_weights)
+                gen_class_logits, gen_discrim_preds = self.pred(x_gen, weights=net_weights)
 
-            # run discriminator on generated data
-            gen_class_logits, gen_discrim_preds = self.pred(x_gen, weights=net_weights)
+            real_nway_loss, real_discrim_loss = self.loss(real_class_logits, y_spt, real_discrim_preds, real)
             gen_nway_loss, gen_discrim_loss = self.loss(gen_class_logits, y_gen, gen_discrim_preds, fake)
 
             nway_loss = (gen_nway_loss + real_nway_loss) / 2
@@ -240,7 +269,10 @@ class MetaGAN(nn.Module):
             shared_loss = nway_loss + discrim_loss
 
             # this needs to be updated/modified for wasserstein
-            gen_loss = gen_nway_loss - gen_discrim_loss
+            if self.condition_discrim:
+                gen_loss = - gen_discrim_loss
+            else:
+                gen_loss = gen_nway_loss - gen_discrim_loss
 
             # 2. compute grad on theta_pi
             net_losses = (shared_loss, nway_loss, discrim_loss)

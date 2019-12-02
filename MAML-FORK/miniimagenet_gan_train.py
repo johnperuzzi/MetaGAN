@@ -23,6 +23,7 @@ def mkdir_p(path):
     try:
         os.makedirs(path)
     except OSError as exc: # Python >2.5
+        print("you probably tried to make a new model in the same minute, wait a couple seconds")
         if exc.errno == errno.EEXIST and os.path.isdir(path):
             pass
         else: raise
@@ -111,6 +112,20 @@ def main():
         ('linear', [1, 32 * 5 * 5]),
         ('sigmoid', [True])
     ]
+
+    if args.condition_discrim:
+        discriminator_config = [
+            ('conv2d', [32, 32, 3, 3, 1, 0]),
+            ('leakyrelu', [.2, True]),
+            ('bn', [32]),
+            ('max_pool2d', [2, 1, 0]),
+            ('flatten', []),
+            ('condition', [1024, 32 * 5 * 5, 5]),
+            ('leakyrelu', [0.2, True]),
+            ('bn', [1024]),
+            ('linear', [1, 1024]),
+            ('sigmoid', [True])
+        ]
 
     gen_config = [
         ('random_proj', [100, 512, 32, 21]), # [latent_dim, embedding_dim, ch_out, h_out/w_out]
@@ -207,6 +222,7 @@ if __name__ == '__main__':
     argparser.add_argument('--update_steps_test', type=int, help='update steps for finetunning', default=10)
     argparser.add_argument('--no_save', default=False, action='store_true', help='Bool type. Pass to not save (right now we save by default)')
     argparser.add_argument('--learn_inner_lr', default=False, action='store_true', help='Bool type. Pass to learn inner lr')
+    argparser.add_argument('--condition_discrim', default=False, action='store_true', help='Bool type. Pass to remove n_way loss from generator and condition discriminator')
 
     args = argparser.parse_args()
 
