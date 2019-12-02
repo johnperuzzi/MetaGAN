@@ -146,9 +146,9 @@ class MetaGAN(nn.Module):
         with torch.no_grad():
             if type(class_logits) == type(None):
                 if self.condition_discrim:
-                    class_logits, discrim_preds = self.conditioned_pred(x, y, weights=weights)
+                    class_logits, discrim_logit = self.conditioned_pred(x, y, weights=weights)
                 else:
-                    class_logits, discrim_preds = self.pred(x, weights=weights, discrimator_label=discrimator_label)
+                    class_logits, discrim_logit = self.pred(x, weights=weights, discrimator_label=discrimator_label)
 
             nway_correct = torch.eq(class_logits.argmax(dim=1), y).sum().item()
 
