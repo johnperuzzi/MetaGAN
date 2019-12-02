@@ -399,6 +399,15 @@ class MetaGAN(nn.Module):
         return accs, imgs
 
 
+    # def save_model(path, step):
+    #     torch.save({
+    #         'epoch': step,
+    #         'params': params.state_dict(),
+    #         'optimizer_state_dict': self.meta_optim.state_dict(),
+    #         'loss': loss
+    #         }, path)
+
+
 
 def main():
     pass

@@ -159,7 +159,7 @@ def main():
     save_model = not args.no_save
     if save_model:
         now = datetime.now().replace(second=0, microsecond=0)
-        path = "results/" + str(now)
+        path = "results/" + str(now) + "_mini"
         mkdir_p(path)
         file = open(path +  '/architecture.txt', 'w+')
         file.write("shared_config = " + json.dumps(shared_config) + "\n" + 
