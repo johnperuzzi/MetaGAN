@@ -293,8 +293,8 @@ class MetaGAN(nn.Module):
                     real_class_logits, real_discrim_logit = self.pred(x_spt, weights=net_weights, discrimator_label=real)
                     gen_class_logits, gen_discrim_logit = self.pred(x_gen, weights=net_weights, discrimator_label=fake)
 
-                real_nway_loss, real_discrim_loss = self.loss(real_class_logits, y_spt, real_discrim_preds, real)
-                gen_nway_loss, gen_discrim_loss = self.loss(gen_class_logits, y_gen, gen_discrim_preds, fake)
+                real_nway_loss, real_discrim_loss = self.loss(real_class_logits, y_spt, real_discrim_logit, real)
+                gen_nway_loss, gen_discrim_loss = self.loss(gen_class_logits, y_gen, gen_discrim_logit, fake)
 
 
                 # this needs to be updated/modified for wasserstein
