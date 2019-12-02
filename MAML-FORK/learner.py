@@ -46,7 +46,7 @@ class Learner(nn.Module):
                 # [ch_in, ch_out]
                 self.vars.append(nn.Parameter(torch.zeros(param[1])))
 
-            elif name is 'linear':
+            elif name is 'linear' or name is 'linear2':
                 # [ch_out, ch_in]
                 w = nn.Parameter(torch.ones(*param))
                 # gain=1 according to cbfinn's implementation
@@ -93,7 +93,7 @@ class Learner(nn.Module):
                       %(param[0], param[1], param[2], param[3], param[4], param[5],)
                 info += tmp + '\n'
 
-            elif name is 'linear':
+            elif name is 'linear' or name is 'linear2':
                 tmp = 'linear:(in:%d, out:%d)'%(param[1], param[0])
                 info += tmp + '\n'
 
@@ -118,7 +118,7 @@ class Learner(nn.Module):
 
 
 
-    def forward(self, x, vars=None, bn_training=True):
+    def forward(self, x, vars=None, bn_training=True, discrimator_label=None):
         """
         This function can be called by finetunning, however, in finetunning, we dont wish to update
         running_mean/running_var. Thought weights/bias of bn is updated, it has been separated by fast_weights.
@@ -154,6 +154,12 @@ class Learner(nn.Module):
                 x = F.linear(x, w, b)
                 idx += 2
                 # print('forward:', idx, x.norm().item())
+            elif name is 'linear2':
+                if discrimator_label is not None:
+                    x = torch.cat([x, discrimator_label], -1)
+                w, b = vars[idx], vars[idx + 1]
+                x = F.linear(x, w, b)
+                idx += 2
             elif name is 'bn':
                 w, b = vars[idx], vars[idx + 1]
                 running_mean, running_var = self.vars_bn[bn_idx], self.vars_bn[bn_idx+1]

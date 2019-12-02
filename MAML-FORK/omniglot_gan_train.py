@@ -82,7 +82,8 @@ def main(args):
         ('relu', [True]),
         ('bn', [64]),
         ('flatten', []),
-        ('linear', [args.n_way, 64])
+        ('linear2', [32, 65]), # 64 + 1 for real versus fake label
+        ('linear', [args.n_way, 32])
     ]
 
     discriminator_config = [
