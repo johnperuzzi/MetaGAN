@@ -141,6 +141,7 @@ class MetaGAN(nn.Module):
         if type(discrim_preds) == type(None):
             return nway_loss
 
+        # F.binary_cross_entropy doesn't support second order derivs
         def binary_cross_entropy(x, y):
             loss = -(x.log() * y + (1 - x).log() * (1 - y))
             return loss.mean()
