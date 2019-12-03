@@ -87,14 +87,14 @@ def main(args):
 
     discriminator_config = [
         ('conv2d', [64, 64, 3, 3, 2, 0]),
-        ('relu', [True]),
+        ('leakyrelu', [True]),
         ('bn', [64]),
         ('conv2d', [64, 64, 2, 2, 1, 0]),
-        ('relu', [True]),
+        ('leakyrelu', [True]),
         ('bn', [64]),
         ('flatten', []),
-        ('linear', [1, 64]),
-        ('sigmoid', [True])
+        ('linear', [1, 64])
+        # don't use a sigmoid at the end
     ]
 
     gen_config = [

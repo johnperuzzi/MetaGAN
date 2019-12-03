@@ -105,12 +105,12 @@ def main():
 
     discriminator_config = [
         ('conv2d', [32, 32, 3, 3, 1, 0]),
-        ('relu', [True]),
+        ('leakyrelu', [True]),
         ('bn', [32]),
         ('max_pool2d', [2, 1, 0]),
         ('flatten', []),
-        ('linear', [1, 32 * 5 * 5]),
-        ('sigmoid', [True])
+        ('linear', [1, 32 * 5 * 5])
+        # don't use a sigmoid at the end
     ]
 
     if args.condition_discrim:
@@ -123,8 +123,8 @@ def main():
             ('condition', [1024, 32 * 5 * 5, 5]),
             ('leakyrelu', [0.2, True]),
             ('bn', [1024]),
-            ('linear', [1, 1024]),
-            ('sigmoid', [True])
+            ('linear', [1, 1024])
+            # don't use a sigmoid at the end
         ]
 
     gen_config = [

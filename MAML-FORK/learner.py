@@ -183,6 +183,7 @@ class Learner(nn.Module):
             elif name is 'tanh':
                 x = F.tanh(x)
             elif name is 'sigmoid':
+                throw("don't be using this in the final layer anymore")
                 x = torch.sigmoid(x)
             elif name is 'upsample':
                 x = F.upsample_nearest(x, scale_factor=param[0])
@@ -196,7 +197,7 @@ class Learner(nn.Module):
                 # y_onehot.zero_()
                 # y_onehot.scatter_(1, labels, 1)
                 assert type(labels) != type(None)
-                
+
                 one_hot = torch.zeros(len(labels), labels.max()+1).scatter_(1, labels.unsqueeze(1), 1.)
                 x = torch.cat((x, one_hot), -1)
                 w, b = vars[idx], vars[idx + 1]
