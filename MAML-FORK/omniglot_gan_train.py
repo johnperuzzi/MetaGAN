@@ -67,10 +67,10 @@ def main(args):
 
     shared_config = [
         ('conv2d', [64, 1, 3, 3, 2, 0]),
-        ('relu', [True]),
+        ('leakyrelu', [.2, True]),
         ('bn', [64]),
         ('conv2d', [64, 64, 3, 3, 2, 0]),
-        ('relu', [True]),
+        ('leakyrelu', [.2, True]),
         ('bn', [64]),
     ]
 
@@ -87,10 +87,10 @@ def main(args):
 
     discriminator_config = [
         ('conv2d', [64, 64, 3, 3, 2, 0]),
-        ('leakyrelu', [True]),
+        ('leakyrelu', [.2, True]),
         ('bn', [64]),
         ('conv2d', [64, 64, 2, 2, 1, 0]),
-        ('leakyrelu', [True]),
+        ('leakyrelu', [.2, True]),
         ('bn', [64]),
         ('flatten', []),
         ('linear', [1, 64])

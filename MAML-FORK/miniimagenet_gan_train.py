@@ -80,15 +80,15 @@ def main():
     shared_config = [
         # [ch_out, ch_in, kernelsz, kernelsz, stride, padding]
         ('conv2d', [32, 3, 3, 3, 1, 0]),
-        ('relu', [True]),
+        ('leakyrelu', [.2, True]),
         ('bn', [32]),
         ('max_pool2d', [2, 2, 0]),
         ('conv2d', [32, 32, 3, 3, 1, 0]),
-        ('relu', [True]),
+        ('leakyrelu', [.2, True]),
         ('bn', [32]),
         ('max_pool2d', [2, 2, 0]),
         ('conv2d', [32, 32, 3, 3, 1, 0]),
-        ('relu', [True]),
+        ('leakyrelu', [.2, True]),
         ('bn', [32]),
         ('max_pool2d', [2, 2, 0]),
 
@@ -105,7 +105,7 @@ def main():
 
     discriminator_config = [
         ('conv2d', [32, 32, 3, 3, 1, 0]),
-        ('leakyrelu', [True]),
+        ('leakyrelu', [.2, True]),
         ('bn', [32]),
         ('max_pool2d', [2, 1, 0]),
         ('flatten', []),
