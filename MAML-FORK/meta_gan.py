@@ -272,10 +272,9 @@ class MetaGAN(nn.Module):
 
 
         # Generate class level image embeddings
-        with torch.no_grad():
-            image_embeddings = self.conditioner(x_spt)
-            image_embeddings = image_embeddings.view(self.n_way, self.k_spt, -1)
-            class_image_embeddings = torch.mean(image_embeddings, 1)
+        image_embeddings = self.conditioner(x_spt)
+        image_embeddings = image_embeddings.view(self.n_way, self.k_spt, -1)
+        class_image_embeddings = torch.mean(image_embeddings, 1) # 512 dim embeddings
 
 
         real = Variable(self.FloatTensor(support_sz, 1).fill_(self.real_val), requires_grad=False)
