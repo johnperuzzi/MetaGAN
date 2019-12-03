@@ -199,7 +199,7 @@ if __name__ == '__main__':
     argparser.add_argument('--update_steps', type=int, help='task-level inner update steps', default=5)
     argparser.add_argument('--update_steps_test', type=int, help='update steps for finetunning', default=10)
     argparser.add_argument('--no_save', default=False, action='store_true', help='Bool type. Pass to not save (right now we save by default)')
-    argparser.add_argument('--learn_inner_lr', type=bool, help='whether to learn the inner update lr', default=True)
+    argparser.add_argument('--learn_inner_lr', default=False, action='store_true', help='Bool type. Pass to learn inner lr')
     argparser.add_argument('--condition_discrim', default=False, action='store_true', help='Bool type. Pass to remove n_way loss from generator and condition discriminator')
 
     args = argparser.parse_args()
