@@ -157,7 +157,7 @@ class MetaGAN(nn.Module):
         lam = 10
         gen_discrim_loss = -torch.mean(gen_discrim_logits)
 
-        alpha = torch.rand((batch_size, 1, 1, 1))
+        alpha = self.FloatTensor(batch_size, 1, 1, 1).uniform_()
         x_interp = alpha * x_gen + (1-alpha) * x_real
 
         _, interp_discrim_logits = self.pred(x_interp, weights=weights, labels=labels, nway=False)
