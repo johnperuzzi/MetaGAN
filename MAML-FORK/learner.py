@@ -67,6 +67,15 @@ class Learner(nn.Module):
                 running_var = nn.Parameter(torch.ones(param[0]), requires_grad=False)
                 self.vars_bn.extend([running_mean, running_var])
 
+            elif name is "condition":
+                # [out, img_rep, label_sz]
+                out, img_rep, label_sz = param
+
+                w = nn.Parameter(torch.ones(out, img_rep + label_sz))
+                torch.nn.init.kaiming_normal_(w)
+
+                self.vars.append(w)
+                self.vars.append(nn.Parameter(torch.zeros(out)))
 
             elif name in ['tanh', 'relu', 'upsample', 'avg_pool2d', 'max_pool2d',
                           'flatten', 'reshape', 'leakyrelu', 'sigmoid']:
@@ -118,7 +127,7 @@ class Learner(nn.Module):
 
 
 
-    def forward(self, x, vars=None, bn_training=True):
+    def forward(self, x, labels=None, vars=None, bn_training=True):
         """
         This function can be called by finetunning, however, in finetunning, we dont wish to update
         running_mean/running_var. Thought weights/bias of bn is updated, it has been separated by fast_weights.
@@ -181,6 +190,18 @@ class Learner(nn.Module):
                 x = F.max_pool2d(x, param[0], param[1], param[2])
             elif name is 'avg_pool2d':
                 x = F.avg_pool2d(x, param[0], param[1], param[2])
+            elif name is 'condition':
+                out, img_rep, label_sz = param
+                # y_onehot = torch.FloatTensor(len(labels), 5)
+                # y_onehot.zero_()
+                # y_onehot.scatter_(1, labels, 1)
+                assert type(labels) != type(None)
+                
+                one_hot = torch.zeros(len(labels), labels.max()+1).scatter_(1, labels.unsqueeze(1), 1.)
+                x = torch.cat((x, one_hot), -1)
+                w, b = vars[idx], vars[idx + 1]
+                x = F.linear(x, w, b)
+                idx += 2
 
             else:
                 raise NotImplementedError
