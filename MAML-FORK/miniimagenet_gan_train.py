@@ -224,6 +224,7 @@ if __name__ == '__main__':
     argparser.add_argument('--learn_inner_lr', default=False, action='store_true', help='Bool type. Pass to learn inner lr')
     argparser.add_argument('--condition_discrim', default=False, action='store_true', help='Bool type. Pass to remove n_way loss from generator and condition discriminator')
     argparser.add_argument('--create_graph', default=False, action='store_true', help='Sets the "create_graph" flag for the inner gradients')
+    argparser.add_argument('--loss', default="cross_entropy", help='can use "wasserstein"')
 
     args = argparser.parse_args()
 
