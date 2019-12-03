@@ -72,7 +72,7 @@ class MetaGAN(nn.Module):
 
         self.real_val = 1.0 # requires that real_val > fake_val
         self.fake_val = 0.0
-        self.create_graph = True
+        self.create_graph = args.create_graph
 
 
 
