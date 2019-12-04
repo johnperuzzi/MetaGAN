@@ -48,8 +48,8 @@ def save_imgs(path, imgs, step):
     for flat_img in some_imgs:
         img = flat_img.reshape(28,28)
 
-        if i < 49:
-            plt.subplot(7, 7, 1 + i)
+        if i < 50:
+            plt.subplot(5, 10, 1 + i)
             plt.axis('off')
             plt.imshow(img, cmap='Greys')
         i += 1
@@ -85,29 +85,60 @@ def main(args):
         ('linear', [args.n_way, 64])
     ]
 
-    discriminator_config = [
-        ('conv2d', [64, 64, 3, 3, 2, 0]),
-        ('relu', [True]),
-        ('bn', [64]),
-        ('conv2d', [64, 64, 2, 2, 1, 0]),
-        ('relu', [True]),
-        ('bn', [64]),
-        ('flatten', []),
-        ('linear', [1, 64]),
-        ('sigmoid', [True])
-    ]
+    # discriminator_config = [
+    #     ('conv2d', [64, 64, 3, 3, 2, 0]),
+    #     ('relu', [True]),
+    #     ('bn', [64]),
+    #     ('conv2d', [64, 64, 2, 2, 1, 0]),
+    #     ('relu', [True]),
+    #     ('bn', [64]),
+    #     ('flatten', []),
+    #     ('linear', [1, 64]),
+    #     ('sigmoid', [True])
+    # ]
 
-    gen_config = [
-        ('random_proj', [100, 512, 64, 7]), # [latent_dim, emb_size, ch_out, h_out/w_out]
-        # img: (64, 7, 7)
-        ('convt2d', [64, 32, 4, 4, 2, 1]), # [ch_in, ch_out, kernel_sz, kernel_sz, stride, padding]
-        ('bn', [32]),
-        ('relu', [True]),
-        # img: (32, 14, 14)
-        ('convt2d', [32, 1, 4, 4, 2, 1]),
-        # img: (1, 28, 28)
-        ('sigmoid', [True])
-    ]
+    if args.condition_discrim:
+        discriminator_config = [
+            ('condition', [512, 1, 6]), # [emb_dim, emb_ch_out, h_out/w_out]
+            ('conv2d', [128, 65, 2, 2, 1, 0]),
+            ('leakyrelu', [.2, True]),
+            ('bn', [128]),
+            ('conv2d', [128, 128, 2, 2, 1, 0]),
+            ('leakyrelu', [.2, True]),
+            ('bn', [128]),
+            ('flatten', []),
+            ('linear', [1, 2048]),
+            ('sigmoid', [True])
+        ]
+
+    # gen_config = [
+    #     ('random_proj', [512, 512, 256, 7]), # [latent_dim, emb_size, ch_out, h_out/w_out]
+    #     ('convt2d', [256, 128, 4, 4, 2, 1]), # [ch_in, ch_out, kernel_sz, kernel_sz, stride, padding]
+    #     ('bn', [128]),
+    #     ('relu', [True]),
+    #     ('convt2d', [128, 64, 4, 4, 2, 1]), # [ch_in, ch_out, kernel_sz, kernel_sz, stride, padding]
+    #     ('bn', [64]),
+    #     ('relu', [True]),
+    #     ('convt2d', [64, 32, 4, 4, 1, 2]), # [ch_in, ch_out, kernel_sz, kernel_sz, stride, padding]
+    #     ('bn', [32]),
+    #     ('relu', [True]),
+    #     # img: (32, 14, 14)
+    #     ('convt2d', [32, 1, 4, 4, 1, 2]),
+    #     # img: (1, 28, 28)
+    #     ('sigmoid', [True])
+    # ]
+    if args.condition_discrim:
+        gen_config = [
+            ('random_proj', [100, 128, 512, 1, 7]), # [latent_dim, latent_ch_out, emb_dim, emb_ch_out, h_out/w_out]
+            ('convt2d', [129, 128, 4, 4, 2, 1]), # [ch_in, ch_out, kernel_sz, kernel_sz, stride, padding]
+            ('leakyrelu', [.2, True]),
+            ('bn', [128]),
+            ('convt2d', [128, 128, 4, 4, 2, 1]),
+            ('leakyrelu', [.2, True]),
+            ('bn', [128]),
+            ('conv2d', [1, 128, 3, 3, 1, 1]),
+            ('sigmoid', [True])
+        ]
 
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -135,11 +166,13 @@ def main(args):
         file.write("shared_config = " + json.dumps(shared_config) + "\n" + 
             "nway_config = " + json.dumps(nway_config) + "\n" +
             "discriminator_config = " + json.dumps(discriminator_config) + "\n" + 
-            "gen_config = " + json.dumps(gen_config)
+            "gen_config = " + json.dumps(gen_config)  + "\n" + 
+            "learn_inner_lr = " + str(args.learn_inner_lr)   + "\n" + 
+            "condition_discrim = " + str(args.condition_discrim)
             )
         file.close()
     for step in range(args.epoch):
-
+        print(step)
         x_spt, y_spt, x_qry, y_qry = db_train.next()
         x_spt, y_spt, x_qry, y_qry = torch.from_numpy(x_spt).to(device), torch.from_numpy(y_spt).to(device), \
                                      torch.from_numpy(x_qry).to(device), torch.from_numpy(y_qry).to(device)
@@ -147,14 +180,14 @@ def main(args):
         # set traning=True to update running_mean, running_variance, bn_weights, bn_bias
         accs = mamlGAN(x_spt, y_spt, x_qry, y_qry)
 
-        if step % 50 == 0:
+        if step % 1 == 0:
             print("step " + str(step))
             for key in accs.keys():
                 print(key + ": " + str(accs[key]))
             if save_model:
                 save_accs(path, accs)
 
-        if step % 500 == 0:
+        if step % 1 == 0:
             accs = []
             imgs = []
             for _ in range(1000//args.tasks_per_batch):
@@ -168,7 +201,8 @@ def main(args):
                     test_acc, ims = mamlGAN.finetunning(x_spt_one, y_spt_one, x_qry_one, y_qry_one)
                     accs.append( test_acc)
                     imgs.append(ims.cpu().detach().numpy())
-
+                    break
+                break
             if save_model:
                 imgs = np.array(imgs)
                 save_imgs(path, imgs, step)

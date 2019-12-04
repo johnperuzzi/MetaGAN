@@ -123,11 +123,14 @@ class MetaGAN(nn.Module):
     # "weights" and "x" are used to generate predictions.
     # If you don't pass in "weights" and "x", you should pass in "class_logits" and
     # "descrim_preds", which are the predictions
-    def get_num_corrects(self, real, y, x=None, weights=None, class_logits=None, discrim_preds=None):
+    def get_num_corrects(self, real, y, x=None, weights=None, class_logits=None, discrim_preds=None, labels=None, y_spt=None):
+        
+
         with torch.no_grad():
             if type(class_logits) == type(None):
                 if self.condition_discrim:
-                    class_logits, discrim_preds = self.pred(x, labels=y, weights=weights)
+                    y_spt_idxs = [int((y_spt == i).nonzero()[0]) for i in y]
+                    class_logits, discrim_preds = self.pred(x, labels=labels[y_spt_idxs], weights=weights)
                 else:
                     class_logits, discrim_preds = self.pred(x, weights=weights)
 
@@ -163,18 +166,23 @@ class MetaGAN(nn.Module):
         shared_loss, nway_loss, discrim_loss = net_losses
         shared_weights, nway_weights, discrim_weights = net_weights
 
-        n_grad = torch.autograd.grad(nway_loss, nway_weights, retain_graph=True, create_graph=True)
+        n_grad = torch.autograd.grad(nway_loss, nway_weights, retain_graph=True)
         n_weights = [w - self.update_lr * grad for grad, w in zip(n_grad, nway_weights)]
 
-        d_grad = torch.autograd.grad(discrim_loss, discrim_weights, retain_graph=True, create_graph=True)
+        d_grad = torch.autograd.grad(discrim_loss, discrim_weights, retain_graph=True)
         d_weights = [w - self.update_lr * grad for grad, w in zip(d_grad, discrim_weights)]
 
-        s_grad = torch.autograd.grad(shared_loss, shared_weights, retain_graph=True, create_graph=True)
+        s_grad = torch.autograd.grad(shared_loss, shared_weights, retain_graph=True)
         s_weights = [w - self.update_lr * grad for grad, w in zip(s_grad, shared_weights)]
 
-        g_grad = torch.autograd.grad(gen_loss, gen_weights, create_graph=True)
-        g_weights = [w - self.update_lr * grad for grad, w in zip(g_grad, gen_weights)]
+        g_grad = torch.autograd.grad(gen_loss, gen_weights)
+        # for grad in s_grad:
+        #     print("s_grad", grad.shape)
+            # print("s_grad", grad[0])
 
+        g_weights = [w - self.update_lr * grad for grad, w in zip(g_grad, gen_weights)]
+        # for weight in shared_weights:
+            # print("weight", weight[0])            
         return (s_weights, n_weights, d_weights), g_weights
 
     # Returns new weights by backpropping their affect on the losses.
@@ -184,16 +192,16 @@ class MetaGAN(nn.Module):
         shared_weights, nway_weights, discrim_weights = net_weights
         shared_lrs, nway_lrs, discrim_lrs, gen_lrs = learned_lrs
 
-        n_grad = torch.autograd.grad(nway_loss, nway_weights, retain_graph=True, create_graph=True)
+        n_grad = torch.autograd.grad(nway_loss, nway_weights, retain_graph=True)
         n_weights = [w - lr * grad for grad, w, lr in zip(n_grad, nway_weights, nway_lrs)]
 
-        d_grad = torch.autograd.grad(discrim_loss, discrim_weights, retain_graph=True, create_graph=True)
+        d_grad = torch.autograd.grad(discrim_loss, discrim_weights, retain_graph=True)
         d_weights = [w - lr * grad for grad, w, lr in zip(d_grad, discrim_weights, discrim_lrs)]
 
-        s_grad = torch.autograd.grad(shared_loss, shared_weights, retain_graph=True, create_graph=True)
+        s_grad = torch.autograd.grad(shared_loss, shared_weights, retain_graph=True)
         s_weights = [w - lr * grad for grad, w, lr in zip(s_grad, shared_weights, shared_lrs)]
 
-        g_grad = torch.autograd.grad(gen_loss, gen_weights, create_graph=True)
+        g_grad = torch.autograd.grad(gen_loss, gen_weights)
         g_weights = [w - lr * grad for grad, w, lr in zip(g_grad, gen_weights, gen_lrs)]
 
         return (s_weights, n_weights, d_weights), g_weights
@@ -220,29 +228,31 @@ class MetaGAN(nn.Module):
         #     net_weights.append([w.clone() for w in net.parameters()])
 
 
-
-        # this is the meta-test loss and accuracy before first update
-        q_nway, q_discrim = self.get_num_corrects(real=True, y=y_qry, weights=[None, None, None], x=x_qry)
-        corrects['q_nway'][0] += q_nway
-        corrects['q_discrim'][0] += q_discrim
-
-
         # Generate class level image embeddings
+
         with torch.no_grad():
             image_embeddings = self.conditioner(x_spt)
             image_embeddings = image_embeddings.view(self.n_way, self.k_spt, -1)
             class_image_embeddings = torch.mean(image_embeddings, 1) # 512 dim embeddings
 
+        # this is the meta-test loss and accuracy before first update
+        q_nway, q_discrim = self.get_num_corrects(real=True, y=y_qry, weights=[None, None, None], x=x_qry, labels=class_image_embeddings, y_spt=y_spt)
+        corrects['q_nway'][0] += q_nway
+        corrects['q_discrim'][0] += q_discrim
+
+
+        print("y_spt", y_spt)
+        print("y_qry", y_qry)
 
         real = Variable(self.FloatTensor(support_sz, 1).fill_(self.real_val), requires_grad=False)
         fake = Variable(self.FloatTensor(support_sz, 1).fill_(self.fake_val), requires_grad=False)
         # run the i-th task and compute loss for k-th inner update
         for k in range(1, self.update_steps + 1):
             x_gen, y_gen = self.generator(class_image_embeddings, y_spt, vars=gen_weights, bn_training=True) 
-
+            y_spt_idxs = [int((y_spt == i).nonzero()[0]) for i in y_spt]
             if self.condition_discrim:
-                real_class_logits, real_discrim_preds = self.pred(x_spt, labels=y_spt, weights=net_weights)
-                gen_class_logits, gen_discrim_preds = self.pred(x_gen, labels=y_gen, weights=net_weights)
+                real_class_logits, real_discrim_preds = self.pred(x_spt, labels=class_image_embeddings, weights=net_weights)
+                gen_class_logits, gen_discrim_preds = self.pred(x_gen, labels=class_image_embeddings, weights=net_weights)
             else:
                 real_class_logits, real_discrim_preds = self.pred(x_spt, weights=net_weights)
                 gen_class_logits, gen_discrim_preds = self.pred(x_gen, weights=net_weights)
@@ -251,6 +261,9 @@ class MetaGAN(nn.Module):
             gen_nway_loss, gen_discrim_loss = self.loss(gen_class_logits, y_gen, gen_discrim_preds, fake)
 
             nway_loss = (gen_nway_loss + real_nway_loss) / 2
+            # print("gen disc", gen_discrim_loss)
+            # print("real disc", real_discrim_loss)
+            # print(" real preds", real_discrim_preds)
             discrim_loss = (gen_discrim_loss + real_discrim_loss) / 2
             shared_loss = nway_loss + discrim_loss
 
@@ -270,21 +283,21 @@ class MetaGAN(nn.Module):
 
             # gen-nway and gen-discrim accuracy
             # using gen from before the update to save computation
-            gen_nway_correct, gen_discrim_correct = self.get_num_corrects(real=False, y=y_gen, class_logits=gen_class_logits, discrim_preds=gen_discrim_preds)
+            gen_nway_correct, gen_discrim_correct = self.get_num_corrects(real=False, y=y_gen, class_logits=gen_class_logits, discrim_preds=gen_discrim_preds, labels=class_image_embeddings, y_spt=y_spt)
             corrects["gen_nway"][k-1] += gen_nway_correct
             corrects["gen_discrim"][k-1] += gen_discrim_correct
 
             # meta-test nway and discrim accuracy
             # [query_sz]
-            q_nway_correct, q_discrim_correct = self.get_num_corrects(real=True, y=y_qry, x=x_qry, weights=net_weights)
+            q_nway_correct, q_discrim_correct = self.get_num_corrects(real=True, y=y_qry, x=x_qry, weights=net_weights, labels=class_image_embeddings, y_spt=y_spt)
             corrects['q_nway'][k] += q_nway_correct
             corrects['q_discrim'][k] += q_discrim_correct
 
 
         # final gen-discrim and gen-nway accuracy
         with torch.no_grad():
-            x_gen, y_gen = self.generator(class_image_embeddings, y_spt, vars=gen_weights, bn_training=False) 
-            gen_nway_correct, gen_discrim_correct = self.get_num_corrects(real=False, y=y_gen, x=x_gen, weights=net_weights)
+            x_gen, y_gen = self.generator(class_image_embeddings, y_spt, vars=gen_weights, bn_training=False)
+            gen_nway_correct, gen_discrim_correct = self.get_num_corrects(real=False, y=y_gen, x=x_gen, weights=net_weights, labels=class_image_embeddings, y_spt=y_spt)
             corrects['gen_nway'][-1] += gen_nway_correct
             corrects['gen_discrim'][-1] += gen_discrim_correct
 

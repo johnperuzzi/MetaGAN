@@ -71,14 +71,21 @@ class Generator(nn.Module):
                 self.vars_bn.extend([running_mean, running_var])
             elif name is "random_proj":
                 # [ch_in, ch_out, img_sz]
-                hidden_sz, emb_size, channels, height_width = param
+                latent_dim, latent_ch_out, emb_dim, emb_ch_out, hw_out = param
 
-                w = nn.Parameter(torch.ones(height_width*height_width*channels, hidden_sz + emb_size))
-                torch.nn.init.kaiming_normal_(w)
+                # latent projection params
+                w_lat = nn.Parameter(torch.ones(hw_out*hw_out*latent_ch_out, latent_dim))
+                torch.nn.init.kaiming_normal_(w_lat)
 
-                self.vars.append(w)
-                self.vars.append(nn.Parameter(torch.zeros(height_width*height_width*channels)))
+                self.vars.append(w_lat)
+                self.vars.append(nn.Parameter(torch.zeros(hw_out*hw_out*latent_ch_out)))
 
+                # embedding projection params
+                w_emb = nn.Parameter(torch.ones(hw_out*hw_out*emb_ch_out, emb_dim))
+                torch.nn.init.kaiming_normal_(w_emb)
+
+                self.vars.append(w_emb)
+                self.vars.append(nn.Parameter(torch.zeros(hw_out*hw_out*emb_ch_out)))
 
 
             elif name in ['tanh', 'relu', 'upsample', 'avg_pool2d', 'max_pool2d',
@@ -151,6 +158,8 @@ class Generator(nn.Module):
         bn_idx = 0
 
         for name, param in self.config:
+            # print(x[0])
+            # print(name)
             if name is 'conv2d':
                 w, b = vars[idx], vars[idx + 1]
                 # remember to keep synchrozied of forward_encoder and forward_decoder!
@@ -178,19 +187,25 @@ class Generator(nn.Module):
                 # gonna need to change "x" in class def
                 # to add conditioning, append conditioning info to x and then replace y with the new labels
                 # also need to change the definition of w according to the new size of x
-                hidden_sz, emb_size, channels, height_width = param
+                latent_dim, latent_ch_out, emb_dim, emb_ch_out, hw_out = param
                 cuda = torch.cuda.is_available()
+
                 FloatTensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor 
-                rand = FloatTensor((batch_sz, hidden_sz))
-                torch.randn((batch_sz, hidden_sz), out=rand, requires_grad=True)
-                x = torch.cat((rand, x), -1)
+                rand = FloatTensor((batch_sz, latent_dim))
+                torch.randn((batch_sz, latent_dim), out=rand, requires_grad=True)
+                w_lat, b_lat = vars[idx], vars[idx + 1]
+                rand = F.linear(rand, w_lat, b_lat)
+                rand = F.leaky_relu(rand, 0.2)
+                rand = rand.view(rand.size(0), latent_ch_out, hw_out, hw_out)
+
+                w_emb, b_emb = vars[idx+2], vars[idx + 3]
+                x = F.linear(x, w_emb, b_emb)
+                x = F.leaky_relu(x, 0.2)
+                x = x.view(x.size(0), emb_ch_out, hw_out, hw_out)
                 # y = torch.randint(low=0, high=self.num_classes, size=(batch_sz,))
+                x = torch.cat((x, rand), 1)
+                idx += 4
 
-                w, b = vars[idx], vars[idx + 1]
-                x = F.linear(x, w, b)
-                idx += 2
-
-                x = x.view(x.size(0), channels, height_width, height_width)
 
 
             elif name is 'flatten':
