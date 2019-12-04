@@ -67,10 +67,10 @@ def main(args):
 
     shared_config = [
         ('conv2d', [64, 1, 3, 3, 2, 0]),
-        ('relu', [True]),
+        ('leakyrelu', [.2, True]),
         ('bn', [64]),
         ('conv2d', [64, 64, 3, 3, 2, 0]),
-        ('relu', [True]),
+        ('leakyrelu', [.2, True]),
         ('bn', [64]),
     ]
 
@@ -84,18 +84,30 @@ def main(args):
         ('flatten', []),
         ('linear', [args.n_way, 64])
     ]
+    
+    discriminator_config = [
+        ('conv2d', [64, 64, 3, 3, 2, 0]),
+        ('leakyrelu', [.2, True]),
+        ('bn', [64]),
+        ('conv2d', [64, 64, 2, 2, 1, 0]),
+        ('leakyrelu', [.2, True]),
+        ('bn', [64]),
+        ('flatten', []),
+        ('linear', [1, 64])
+        # don't use a sigmoid at the end
+    ]
 
-    # discriminator_config = [
-    #     ('conv2d', [64, 64, 3, 3, 2, 0]),
-    #     ('relu', [True]),
-    #     ('bn', [64]),
-    #     ('conv2d', [64, 64, 2, 2, 1, 0]),
-    #     ('relu', [True]),
-    #     ('bn', [64]),
-    #     ('flatten', []),
-    #     ('linear', [1, 64]),
-    #     ('sigmoid', [True])
-    # ]
+    gen_config = [
+        ('random_proj', [100, 512, 64, 7]), # [latent_dim, emb_size, ch_out, h_out/w_out]
+        # img: (64, 7, 7)
+        ('convt2d', [64, 32, 4, 4, 2, 1]), # [ch_in, ch_out, kernel_sz, kernel_sz, stride, padding]
+        ('bn', [32]),
+        ('relu', [True]),
+        # img: (32, 14, 14)
+        ('convt2d', [32, 1, 4, 4, 2, 1]),
+        # img: (1, 28, 28)
+        ('sigmoid', [True])
+    ]
 
     if args.condition_discrim:
         discriminator_config = [
@@ -107,26 +119,9 @@ def main(args):
             ('leakyrelu', [.2, True]),
             ('bn', [128]),
             ('flatten', []),
-            ('linear', [1, 2048]),
-            ('sigmoid', [True])
+            ('linear', [1, 2048])
         ]
 
-    # gen_config = [
-    #     ('random_proj', [512, 512, 256, 7]), # [latent_dim, emb_size, ch_out, h_out/w_out]
-    #     ('convt2d', [256, 128, 4, 4, 2, 1]), # [ch_in, ch_out, kernel_sz, kernel_sz, stride, padding]
-    #     ('bn', [128]),
-    #     ('relu', [True]),
-    #     ('convt2d', [128, 64, 4, 4, 2, 1]), # [ch_in, ch_out, kernel_sz, kernel_sz, stride, padding]
-    #     ('bn', [64]),
-    #     ('relu', [True]),
-    #     ('convt2d', [64, 32, 4, 4, 1, 2]), # [ch_in, ch_out, kernel_sz, kernel_sz, stride, padding]
-    #     ('bn', [32]),
-    #     ('relu', [True]),
-    #     # img: (32, 14, 14)
-    #     ('convt2d', [32, 1, 4, 4, 1, 2]),
-    #     # img: (1, 28, 28)
-    #     ('sigmoid', [True])
-    # ]
     if args.condition_discrim:
         gen_config = [
             ('random_proj', [100, 128, 512, 1, 7]), # [latent_dim, latent_ch_out, emb_dim, emb_ch_out, h_out/w_out]
@@ -235,6 +230,8 @@ if __name__ == '__main__':
     argparser.add_argument('--no_save', default=False, action='store_true', help='Bool type. Pass to not save (right now we save by default)')
     argparser.add_argument('--learn_inner_lr', default=False, action='store_true', help='Bool type. Pass to learn inner lr')
     argparser.add_argument('--condition_discrim', default=False, action='store_true', help='Bool type. Pass to remove n_way loss from generator and condition discriminator')
+    argparser.add_argument('--create_graph', default=False, action='store_true', help='Sets the "create_graph" flag for the inner gradients')
+    argparser.add_argument('--loss', default="cross_entropy", help='can use "wasserstein"')
 
     args = argparser.parse_args()
 

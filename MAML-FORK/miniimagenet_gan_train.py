@@ -80,15 +80,15 @@ def main():
     shared_config = [
         # [ch_out, ch_in, kernelsz, kernelsz, stride, padding]
         ('conv2d', [32, 3, 3, 3, 1, 0]),
-        ('relu', [True]),
+        ('leakyrelu', [.2, True]),
         ('bn', [32]),
         ('max_pool2d', [2, 2, 0]),
         ('conv2d', [32, 32, 3, 3, 1, 0]),
-        ('relu', [True]),
+        ('leakyrelu', [.2, True]),
         ('bn', [32]),
         ('max_pool2d', [2, 2, 0]),
         ('conv2d', [32, 32, 3, 3, 1, 0]),
-        ('relu', [True]),
+        ('leakyrelu', [.2, True]),
         ('bn', [32]),
         ('max_pool2d', [2, 2, 0]),
 
@@ -105,12 +105,12 @@ def main():
 
     discriminator_config = [
         ('conv2d', [32, 32, 3, 3, 1, 0]),
-        ('relu', [True]),
+        ('leakyrelu', [.2, True]),
         ('bn', [32]),
         ('max_pool2d', [2, 1, 0]),
         ('flatten', []),
-        ('linear', [1, 32 * 5 * 5]),
-        ('sigmoid', [True])
+        ('linear', [1, 32 * 5 * 5])
+        # don't use a sigmoid at the end
     ]
 
     if args.condition_discrim:
@@ -123,8 +123,8 @@ def main():
             ('condition', [1024, 32 * 5 * 5, 5]),
             ('leakyrelu', [0.2, True]),
             ('bn', [1024]),
-            ('linear', [1, 1024]),
-            ('sigmoid', [True])
+            ('linear', [1, 1024])
+            # don't use a sigmoid at the end
         ]
 
     gen_config = [
@@ -225,6 +225,8 @@ if __name__ == '__main__':
     argparser.add_argument('--no_save', default=False, action='store_true', help='Bool type. Pass to not save (right now we save by default)')
     argparser.add_argument('--learn_inner_lr', default=False, action='store_true', help='Bool type. Pass to learn inner lr')
     argparser.add_argument('--condition_discrim', default=False, action='store_true', help='Bool type. Pass to remove n_way loss from generator and condition discriminator')
+    argparser.add_argument('--create_graph', default=False, action='store_true', help='Sets the "create_graph" flag for the inner gradients')
+    argparser.add_argument('--loss', default="cross_entropy", help='can use "wasserstein"')
 
     args = argparser.parse_args()
 

@@ -188,7 +188,7 @@ class Learner(nn.Module):
             elif name is 'tanh':
                 x = F.tanh(x)
             elif name is 'sigmoid':
-                x = x.clamp(min=-10, max=10)
+                throw("don't be using this in the final layer anymore")
                 x = torch.sigmoid(x)
             elif name is 'upsample':
                 x = F.upsample_nearest(x, scale_factor=param[0])
@@ -200,7 +200,7 @@ class Learner(nn.Module):
                 emb_dim, emb_ch_out, hw_out = param
 
                 assert type(labels) != type(None)
-                # one_hot = torch.zeros(len(labels), labels.max()+1).scatter_(1, labels.unsqueeze(1), 1.)
+
                 w, b = vars[idx], vars[idx + 1]
                 labels = F.linear(labels, w, b)
                 labels = labels.view(labels.size(0), emb_ch_out, hw_out, hw_out)
