@@ -248,9 +248,6 @@ class MetaGAN(nn.Module):
         corrects['q_discrim'][0] += q_discrim
 
 
-        print("y_spt", y_spt)
-        print("y_qry", y_qry)
-
         real = Variable(self.FloatTensor(support_sz, 1).fill_(self.real_val), requires_grad=False)
         fake = Variable(self.FloatTensor(support_sz, 1).fill_(self.fake_val), requires_grad=False)
         # run the i-th task and compute loss for k-th inner update

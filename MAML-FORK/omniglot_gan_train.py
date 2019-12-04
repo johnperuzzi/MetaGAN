@@ -17,22 +17,30 @@ def mkdir_p(path):
             pass
         else: raise
 
-def save_accs(path, accs):
-    file = open(path +  '/q_nway_accuracies.txt', 'ab')
-    np.savetxt(file, np.array([accs["q_nway"]]))
+def save_train_accs(path, accs, epoch):
+    file = open(path +  '/q_nway_train_accuracies.txt', 'ab')
+    np.savetxt(file, [np.insert(accs["q_nway"],0, epoch)])
     file.close()
 
-    file = open(path +  '/q_discrim_accuracies.txt', 'ab')
-    np.savetxt(file, np.array([accs["q_discrim"]]))
+    file = open(path +  '/q_discrim_train_accuracies.txt', 'ab')
+    np.savetxt(file, [np.insert(accs["q_discrim"],0, epoch)])
     file.close()
 
-    file = open(path +  '/gen_nway_accuracies.txt', 'ab')
-    np.savetxt(file, np.array([accs["gen_nway"]]))
+    file = open(path +  '/gen_nway_train_accuracies.txt', 'ab')
+    np.savetxt(file, [np.insert(accs["gen_nway"],0, epoch)])
     file.close()
 
-    file = open(path +  '/gen_discrim_accuracies.txt', 'ab')
-    np.savetxt(file, np.array([accs["gen_discrim"]]))
+    file = open(path +  '/gen_discrim_train_accuracies.txt', 'ab')
+    np.savetxt(file,  [np.insert(accs["gen_discrim"],0, epoch)])
     file.close()
+
+def save_test_accs(path, accs, epoch):
+    file = open(path +  '/q_nway_test_accuracies.txt', 'ab')
+
+    print(np.insert(accs,0, epoch))
+    np.savetxt(file, [np.insert(accs,0, epoch)])
+    file.close()
+
 
 
 def save_imgs(path, imgs, step):
@@ -84,7 +92,7 @@ def main(args):
         ('flatten', []),
         ('linear', [args.n_way, 64])
     ]
-    
+
     discriminator_config = [
         ('conv2d', [64, 64, 3, 3, 2, 0]),
         ('leakyrelu', [.2, True]),
@@ -97,17 +105,31 @@ def main(args):
         # don't use a sigmoid at the end
     ]
 
+    # new gen_config
     gen_config = [
-        ('random_proj', [100, 512, 64, 7]), # [latent_dim, emb_size, ch_out, h_out/w_out]
-        # img: (64, 7, 7)
-        ('convt2d', [64, 32, 4, 4, 2, 1]), # [ch_in, ch_out, kernel_sz, kernel_sz, stride, padding]
-        ('bn', [32]),
-        ('relu', [True]),
-        # img: (32, 14, 14)
-        ('convt2d', [32, 1, 4, 4, 2, 1]),
-        # img: (1, 28, 28)
+        ('random_proj', [100, 128, 512, 1, 7]), # [latent_dim, latent_ch_out, emb_dim, emb_ch_out, h_out/w_out]
+        ('convt2d', [129, 128, 4, 4, 2, 1]), # [ch_in, ch_out, kernel_sz, kernel_sz, stride, padding]
+        ('leakyrelu', [.2, True]),
+        ('bn', [128]),
+        ('convt2d', [128, 128, 4, 4, 2, 1]),
+        ('leakyrelu', [.2, True]),
+        ('bn', [128]),
+        ('conv2d', [1, 128, 3, 3, 1, 1]),
         ('sigmoid', [True])
     ]
+
+    # old gen_config
+    # gen_config = [
+    #     ('random_proj', [100, 512, 64, 7]), # [latent_dim, emb_size, ch_out, h_out/w_out]
+    #     # img: (64, 7, 7)
+    #     ('convt2d', [64, 32, 4, 4, 2, 1]), # [ch_in, ch_out, kernel_sz, kernel_sz, stride, padding]
+    #     ('bn', [32]),
+    #     ('relu', [True]),
+    #     # img: (32, 14, 14)
+    #     ('convt2d', [32, 1, 4, 4, 2, 1]),
+    #     # img: (1, 28, 28)
+    #     ('sigmoid', [True])
+    # ]
 
     if args.condition_discrim:
         discriminator_config = [
@@ -120,19 +142,6 @@ def main(args):
             ('bn', [128]),
             ('flatten', []),
             ('linear', [1, 2048])
-        ]
-
-    if args.condition_discrim:
-        gen_config = [
-            ('random_proj', [100, 128, 512, 1, 7]), # [latent_dim, latent_ch_out, emb_dim, emb_ch_out, h_out/w_out]
-            ('convt2d', [129, 128, 4, 4, 2, 1]), # [ch_in, ch_out, kernel_sz, kernel_sz, stride, padding]
-            ('leakyrelu', [.2, True]),
-            ('bn', [128]),
-            ('convt2d', [128, 128, 4, 4, 2, 1]),
-            ('leakyrelu', [.2, True]),
-            ('bn', [128]),
-            ('conv2d', [1, 128, 3, 3, 1, 1]),
-            ('sigmoid', [True])
         ]
 
 
@@ -175,14 +184,14 @@ def main(args):
         # set traning=True to update running_mean, running_variance, bn_weights, bn_bias
         accs = mamlGAN(x_spt, y_spt, x_qry, y_qry)
 
-        if step % 1 == 0:
+        if step % 50 == 0:
             print("step " + str(step))
             for key in accs.keys():
                 print(key + ": " + str(accs[key]))
             if save_model:
-                save_accs(path, accs)
+                save_train_accs(path, accs, int(step))
 
-        if step % 1 == 0:
+        if step % 500 == 0:
             accs = []
             imgs = []
             for _ in range(1000//args.tasks_per_batch):
@@ -198,7 +207,9 @@ def main(args):
                     imgs.append(ims.cpu().detach().numpy())
                     break
                 break
+
             if save_model:
+                save_test_accs(path, accs, int(step))
                 imgs = np.array(imgs)
                 save_imgs(path, imgs, step)
 

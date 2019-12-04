@@ -187,12 +187,12 @@ class Generator(nn.Module):
                 idx += 2
                 bn_idx += 2
             elif name is 'random_proj':
-                # gonna need to change "x" in class def
-                # to add conditioning, append conditioning info to x and then replace y with the new labels
-                # also need to change the definition of w according to the new size of x
+                # copying generator architecture from here: https://machinelearningmastery.com/how-to-develop-a-conditional-generative-adversarial-network-from-scratch/
+
                 latent_dim, latent_ch_out, emb_dim, emb_ch_out, hw_out = param
                 cuda = torch.cuda.is_available()
 
+                # send random tensor to linear layer, reshape into noise channels
                 FloatTensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor 
                 rand = FloatTensor((batch_sz, latent_dim))
                 torch.randn((batch_sz, latent_dim), out=rand, requires_grad=True)
@@ -201,11 +201,13 @@ class Generator(nn.Module):
                 rand = F.leaky_relu(rand, 0.2)
                 rand = rand.view(rand.size(0), latent_ch_out, hw_out, hw_out)
 
+                # send class embbeddings through a linear layer, reshape embeddings channels
                 w_emb, b_emb = vars[idx+2], vars[idx + 3]
                 x = F.linear(x, w_emb, b_emb)
                 x = F.leaky_relu(x, 0.2)
                 x = x.view(x.size(0), emb_ch_out, hw_out, hw_out)
-                # y = torch.randint(low=0, high=self.num_classes, size=(batch_sz,))
+
+                # concatenate embeddings and projections
                 x = torch.cat((x, rand), 1)
                 idx += 4
 
