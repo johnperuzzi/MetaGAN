@@ -205,8 +205,6 @@ def main(args):
                     test_acc, ims = mamlGAN.finetunning(x_spt_one, y_spt_one, x_qry_one, y_qry_one)
                     accs.append( test_acc)
                     imgs.append(ims.cpu().detach().numpy())
-                    break
-                break
 
             if save_model:
                 save_test_accs(path, accs, int(step))

@@ -236,11 +236,19 @@ class MetaGAN(nn.Module):
 
 
         # Generate class level image embeddings
-
+        # nearly positive this doesn't work for k > 1, since the spt is in a random order
+        # to see, run the following code with k = 2 and uncomment the print statements
+        # I don't think we can just run .view()
+        
+        # print("y", y_spt)
         with torch.no_grad():
+            # print("x_spt", x_spt.shape)
             image_embeddings = self.conditioner(x_spt)
+            # print("emb", image_embeddings.shape)
             image_embeddings = image_embeddings.view(self.n_way, self.k_spt, -1)
+            # print("emb n_way, k_spt", image_embeddings.shape)
             class_image_embeddings = torch.mean(image_embeddings, 1) # 512 dim embeddings
+            # print("emb mean", image_embeddings.shape)
 
         # this is the meta-test loss and accuracy before first update
         q_nway, q_discrim = self.get_num_corrects(real=True, y=y_qry, weights=[None, None, None], x=x_qry, labels=class_image_embeddings, y_spt=y_spt)
