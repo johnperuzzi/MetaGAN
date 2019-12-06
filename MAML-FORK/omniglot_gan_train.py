@@ -184,14 +184,14 @@ def main(args):
         # set traning=True to update running_mean, running_variance, bn_weights, bn_bias
         accs = mamlGAN(x_spt, y_spt, x_qry, y_qry)
 
-        if step % 50 == 0:
+        if step % 1 == 0:
             print("step " + str(step))
             for key in accs.keys():
                 print(key + ": " + str(accs[key]))
             if save_model:
                 save_train_accs(path, accs, int(step))
 
-        if step % 500 == 0:
+        if step % 1 == 0:
             accs = []
             imgs = []
             for _ in range(1000//args.tasks_per_batch):
@@ -205,6 +205,8 @@ def main(args):
                     test_acc, ims = mamlGAN.finetunning(x_spt_one, y_spt_one, x_qry_one, y_qry_one)
                     accs.append( test_acc)
                     imgs.append(ims.cpu().detach().numpy())
+                    break
+                break
 
             if save_model:
                 save_test_accs(path, accs, int(step))

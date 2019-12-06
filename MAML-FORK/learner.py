@@ -132,7 +132,7 @@ class Learner(nn.Module):
 
 
 
-    def forward(self, x, labels=None, vars=None, bn_training=True):
+    def forward(self, x, conditions=None, vars=None, bn_training=True):
         """
         This function can be called by finetunning, however, in finetunning, we dont wish to update
         running_mean/running_var. Thought weights/bias of bn is updated, it has been separated by fast_weights.
@@ -199,12 +199,12 @@ class Learner(nn.Module):
             elif name is 'condition':
                 emb_dim, emb_ch_out, hw_out = param
 
-                assert type(labels) != type(None)
+                assert type(conditions) != type(None)
 
                 w, b = vars[idx], vars[idx + 1]
-                labels = F.linear(labels, w, b)
-                labels = labels.view(labels.size(0), emb_ch_out, hw_out, hw_out)
-                x = torch.cat((x, labels), 1)
+                conditions = F.linear(conditions, w, b)
+                conditions = conditions.view(conditions.size(0), emb_ch_out, hw_out, hw_out)
+                x = torch.cat((x, conditions), 1)
 
 
                 idx += 2
