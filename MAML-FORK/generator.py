@@ -159,9 +159,7 @@ class Generator(nn.Module):
 
         assert self.config[0][0] is 'random_proj'
         # need to start with the random projection
-
         for name, param in self.config:
-            # print(x[0])
             # print(name)
             if name is 'conv2d':
                 w, b = vars[idx], vars[idx + 1]

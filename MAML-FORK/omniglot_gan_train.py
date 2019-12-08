@@ -107,8 +107,8 @@ def main(args):
 
     # new gen_config
     gen_config = [
-        ('random_proj', [100, 128, 512, 1, 7]), # [latent_dim, latent_ch_out, emb_dim, emb_ch_out, h_out/w_out]
-        ('convt2d', [129, 128, 4, 4, 2, 1]), # [ch_in, ch_out, kernel_sz, kernel_sz, stride, padding]
+        ('random_proj', [100, 128, 512, 128, 7]), # [latent_dim, latent_ch_out, emb_dim, emb_ch_out, h_out/w_out]
+        ('convt2d', [256, 128, 4, 4, 2, 1]), # [ch_in, ch_out, kernel_sz, kernel_sz, stride, padding]
         ('leakyrelu', [.2, True]),
         ('bn', [128]),
         ('convt2d', [128, 128, 4, 4, 2, 1]),
@@ -176,21 +176,20 @@ def main(args):
             )
         file.close()
     for step in range(args.epoch):
-        print(step)
         x_spt, y_spt, x_qry, y_qry = db_train.next()
         x_spt, y_spt, x_qry, y_qry = torch.from_numpy(x_spt).to(device), torch.from_numpy(y_spt).to(device), \
                                      torch.from_numpy(x_qry).to(device), torch.from_numpy(y_qry).to(device)
 
         # set traning=True to update running_mean, running_variance, bn_weights, bn_bias
         accs = mamlGAN(x_spt, y_spt, x_qry, y_qry)
-
+        print("step", step)
         if step % 1 == 0:
             print("step " + str(step))
             for key in accs.keys():
                 print(key + ": " + str(accs[key]))
             if save_model:
                 save_train_accs(path, accs, int(step))
-
+        print("testing")
         if step % 1 == 0:
             accs = []
             imgs = []
@@ -205,8 +204,10 @@ def main(args):
                     test_acc, ims = mamlGAN.finetunning(x_spt_one, y_spt_one, x_qry_one, y_qry_one)
                     accs.append( test_acc)
                     imgs.append(ims.cpu().detach().numpy())
+                    if args.single_fast_test:
+                        break
+                if args.single_fast_test: 
                     break
-                break
 
             if save_model:
                 save_test_accs(path, accs, int(step))
@@ -236,6 +237,7 @@ if __name__ == '__main__':
     argparser.add_argument('--tasks_per_batch', type=int, help='meta batch size, i.e. number of tasks per batch', default=32)
     argparser.add_argument('--meta_lr', type=float, help='meta-level outer learning rate', default=1e-3)
     argparser.add_argument('--update_lr', type=float, help='task-level inner update learning rate', default=0.4)
+    argparser.add_argument('--gan_update_lr', type=float, help='task-level inner update learning rate', default=0.001)
     argparser.add_argument('--update_steps', type=int, help='task-level inner update steps', default=5)
     argparser.add_argument('--update_steps_test', type=int, help='update steps for finetunning', default=10)
     argparser.add_argument('--no_save', default=False, action='store_true', help='Bool type. Pass to not save (right now we save by default)')
@@ -243,6 +245,7 @@ if __name__ == '__main__':
     argparser.add_argument('--condition_discrim', default=False, action='store_true', help='Bool type. Pass to remove n_way loss from generator and condition discriminator')
     argparser.add_argument('--create_graph', default=False, action='store_true', help='Sets the "create_graph" flag for the inner gradients')
     argparser.add_argument('--loss', default="cross_entropy", help='can use "wasserstein"')
+    argparser.add_argument('--single_fast_test', default=False, action='store_true', help='Do one really fast test instead of waiting for tons of examples')
 
     args = argparser.parse_args()
 
