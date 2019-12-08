@@ -121,6 +121,7 @@ def main(args):
     # new gen_config
     # starts from image and convolves it into new ones
     gen_config = [
+        ('convt2d', [1, 64, 3, 3, 1, 1]),
         ('leakyrelu', [.2, True]),
         ('bn', [64]),
         ('random_proj', [100, 28, 64]),
@@ -138,6 +139,7 @@ def main(args):
         ('conv2d', [1, 64, 3, 3, 1, 1]),
         ('sigmoid', [True])
     ]
+
 
     # old gen_config
     # gen_config = [
@@ -215,8 +217,6 @@ def main(args):
             accs = []
             imgs = []
             for _ in range(1000//args.tasks_per_batch):
-                print(1000//args.tasks_per_batch)
-                print("iterating through test " + str(_))
                 # test
                 x_spt, y_spt, x_qry, y_qry = db_train.next('test')
                 x_spt, y_spt, x_qry, y_qry = torch.from_numpy(x_spt).to(device), torch.from_numpy(y_spt).to(device), \

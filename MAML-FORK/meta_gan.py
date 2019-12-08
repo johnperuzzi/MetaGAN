@@ -37,6 +37,7 @@ class MetaGAN(nn.Module):
         self.learn_inner_lr = args.learn_inner_lr
         self.condition_discrim = args.condition_discrim
         self.single_fast_test = args.single_fast_test
+        self.gen_reg_w = args.gen_reg_w
 
         self.single_fast_test = args.single_fast_test
 
@@ -51,8 +52,8 @@ class MetaGAN(nn.Module):
 
         self.shared_net = Learner(shared_config, args.img_c, args.img_sz)
         self.nway_net = Learner(nway_config, args.img_c, args.img_sz)
-
         self.discrim_net = Learner(discriminator_config, args.img_c, args.img_sz)
+        self.gen_reg_w = args.gen_reg_w
 
         params = list(self.shared_net.parameters()) + list(self.nway_net.parameters()) + list(self.discrim_net.parameters())
         params += list(self.generator.parameters()) + list(self.generator_reg.parameters())
@@ -185,14 +186,12 @@ class MetaGAN(nn.Module):
         d_grad = torch.autograd.grad(discrim_loss, discrim_weights, retain_graph=True, create_graph=self.create_graph)
         d_weights = [w - self.update_lr * grad for grad, w in zip(d_grad, discrim_weights)]
 
-        s_grad = torch.autograd.grad(shared_loss, shared_weights, retain_graph=True, create_graph=self.create_graph)
-        s_weights = [w - self.update_lr * grad for grad, w in zip(s_grad, shared_weights)]
+        # s_grad = torch.autograd.grad(shared_loss, shared_weights, retain_graph=True, create_graph=self.create_graph)
+        # s_weights = [w - self.update_lr * grad for grad, w in zip(s_grad, shared_weights)]
+        s_weights = shared_weights
 
         g_grad = torch.autograd.grad(gen_loss, gen_weights, create_graph=self.create_graph)
         g_weights = [w - self.gan_update_lr * grad for grad, w in zip(g_grad, gen_weights)]
-
-        g_grad = torch.autograd.grad(gen_loss, gen_weights, create_graph=self.create_graph)
-        g_weights = [w - self.update_lr * grad for grad, w in zip(g_grad, gen_weights)]
 
         return (s_weights, n_weights, d_weights), g_weights
 
@@ -209,8 +208,9 @@ class MetaGAN(nn.Module):
         d_grad = torch.autograd.grad(discrim_loss, discrim_weights, retain_graph=True, create_graph=self.create_graph)
         d_weights = [w - lr * grad for grad, w, lr in zip(d_grad, discrim_weights, discrim_lrs)]
 
-        s_grad = torch.autograd.grad(shared_loss, shared_weights, retain_graph=True, create_graph=self.create_graph)
-        s_weights = [w - lr * grad for grad, w, lr in zip(s_grad, shared_weights, shared_lrs)]
+        # s_grad = torch.autograd.grad(shared_loss, shared_weights, retain_graph=True, create_graph=self.create_graph)
+        # s_weights = [w - lr * grad for grad, w, lr in zip(s_grad, shared_weights, shared_lrs)]
+        s_weights = shared_weights
 
         g_grad = torch.autograd.grad(gen_loss, gen_weights, create_graph=self.create_graph)
         g_weights = [w - lr * grad for grad, w, lr in zip(g_grad, gen_weights, gen_lrs)]
