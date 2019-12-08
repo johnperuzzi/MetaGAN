@@ -83,6 +83,12 @@ def main(args):
     ]
 
     nway_config = [
+        ('conv2d', [64, 1, 3, 3, 2, 0]),
+        ('leakyrelu', [.2, True]),
+        ('bn', [64]),
+        ('conv2d', [64, 64, 3, 3, 2, 0]),
+        ('leakyrelu', [.2, True]),
+        ('bn', [64]),
         ('conv2d', [64, 64, 3, 3, 2, 0]),
         ('relu', [True]),
         ('bn', [64]),
@@ -93,7 +99,14 @@ def main(args):
         ('linear', [args.n_way, 64])
     ]
 
+    # reads in image
     discriminator_config = [
+        ('conv2d', [64, 1, 3, 3, 2, 0]),
+        ('leakyrelu', [.2, True]),
+        ('bn', [64]),
+        ('conv2d', [64, 64, 3, 3, 2, 0]),
+        ('leakyrelu', [.2, True]),
+        ('bn', [64]),
         ('conv2d', [64, 64, 3, 3, 2, 0]),
         ('leakyrelu', [.2, True]),
         ('bn', [64]),
@@ -106,15 +119,23 @@ def main(args):
     ]
 
     # new gen_config
+    # starts from image and convolves it into new ones
     gen_config = [
-        ('random_proj', [100, 128, 512, 128, 7]), # [latent_dim, latent_ch_out, emb_dim, emb_ch_out, h_out/w_out]
-        ('convt2d', [256, 128, 4, 4, 2, 1]), # [ch_in, ch_out, kernel_sz, kernel_sz, stride, padding]
         ('leakyrelu', [.2, True]),
-        ('bn', [128]),
-        ('convt2d', [128, 128, 4, 4, 2, 1]),
-        ('leakyrelu', [.2, True]),
-        ('bn', [128]),
-        ('conv2d', [1, 128, 3, 3, 1, 1]),
+        ('bn', [64]),
+        ('random_proj', [100, 28, 64]),
+        ('convt2d', [128, 64, 3, 3, 1, 1]),
+        #('convt2d', [1, 128, 4, 4, 2, 1]), # [ch_in, ch_out, kernel_sz, kernel_sz, stride, padding]
+        ('relu', [.2, True]),
+        ('bn', [64]),
+        # ('encode', [1024, 64*28*28]),
+        # ('decode', [64*28*28, 1024]),
+        ('relu', [.2, True]),
+        ('conv2d', [64, 64, 3, 3, 1, 1]),
+        #('convt2d', [1, 128, 4, 4, 2, 1]), # [ch_in, ch_out, kernel_sz, kernel_sz, stride, padding]
+        ('relu', [.2, True]),
+        ('bn', [64]),
+        ('conv2d', [1, 64, 3, 3, 1, 1]),
         ('sigmoid', [True])
     ]
 
@@ -131,18 +152,18 @@ def main(args):
     #     ('sigmoid', [True])
     # ]
 
-    if args.condition_discrim:
-        discriminator_config = [
-            ('condition', [512, 1, 6]), # [emb_dim, emb_ch_out, h_out/w_out]
-            ('conv2d', [128, 65, 2, 2, 1, 0]),
-            ('leakyrelu', [.2, True]),
-            ('bn', [128]),
-            ('conv2d', [128, 128, 2, 2, 1, 0]),
-            ('leakyrelu', [.2, True]),
-            ('bn', [128]),
-            ('flatten', []),
-            ('linear', [1, 2048])
-        ]
+    # if args.condition_discrim:
+    #     discriminator_config = [
+    #         ('condition', [512, 1, 6]), # [emb_dim, emb_ch_out, h_out/w_out]
+    #         ('conv2d', [128, 65, 2, 2, 1, 0]),
+    #         ('leakyrelu', [.2, True]),
+    #         ('bn', [128]),
+    #         ('conv2d', [128, 128, 2, 2, 1, 0]),
+    #         ('leakyrelu', [.2, True]),
+    #         ('bn', [128]),
+    #         ('flatten', []),
+    #         ('linear', [1, 2048])
+    #     ]
 
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -182,18 +203,20 @@ def main(args):
 
         # set traning=True to update running_mean, running_variance, bn_weights, bn_bias
         accs = mamlGAN(x_spt, y_spt, x_qry, y_qry)
-        print("step", step)
-        if step % 1 == 0:
+
+        if step % 30 == 0:
             print("step " + str(step))
             for key in accs.keys():
                 print(key + ": " + str(accs[key]))
             if save_model:
                 save_train_accs(path, accs, int(step))
-        print("testing")
-        if step % 1 == 0:
+        if step % 500 == 0:
+            print("testing")
             accs = []
             imgs = []
             for _ in range(1000//args.tasks_per_batch):
+                print(1000//args.tasks_per_batch)
+                print("iterating through test " + str(_))
                 # test
                 x_spt, y_spt, x_qry, y_qry = db_train.next('test')
                 x_spt, y_spt, x_qry, y_qry = torch.from_numpy(x_spt).to(device), torch.from_numpy(y_spt).to(device), \
@@ -203,6 +226,7 @@ def main(args):
                 for x_spt_one, y_spt_one, x_qry_one, y_qry_one in zip(x_spt, y_spt, x_qry, y_qry):
                     test_acc, ims = mamlGAN.finetunning(x_spt_one, y_spt_one, x_qry_one, y_qry_one)
                     accs.append( test_acc)
+                    imgs.append(x_spt_one.cpu().detach().numpy())
                     imgs.append(ims.cpu().detach().numpy())
                     if args.single_fast_test:
                         break
@@ -246,7 +270,10 @@ if __name__ == '__main__':
     argparser.add_argument('--create_graph', default=False, action='store_true', help='Sets the "create_graph" flag for the inner gradients')
     argparser.add_argument('--loss', default="cross_entropy", help='can use "wasserstein"')
     argparser.add_argument('--single_fast_test', default=False, action='store_true', help='Do one really fast test instead of waiting for tons of examples')
+    argparser.add_argument('--gen_reg_w', type=float, help='regularize generator to be meta-helpful', default=0.0)
 
     args = argparser.parse_args()
 
     main(args)
+
+
