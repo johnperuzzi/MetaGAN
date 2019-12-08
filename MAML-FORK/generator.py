@@ -57,7 +57,22 @@ class Generator(nn.Module):
                 self.vars.append(w)
                 # [ch_out]
                 self.vars.append(nn.Parameter(torch.zeros(param[0])))
-
+            elif name is 'encode':
+                # [ch_out, ch_in]
+                w = nn.Parameter(torch.ones(*param))
+                # gain=1 according to cbfinn's implementation
+                torch.nn.init.kaiming_normal_(w)
+                self.vars.append(w)
+                # [ch_out]
+                self.vars.append(nn.Parameter(torch.zeros(param[0])))
+            elif name is 'decode':
+                # [ch_out, ch_in]
+                w = nn.Parameter(torch.ones(*param))
+                # gain=1 according to cbfinn's implementation
+                torch.nn.init.kaiming_normal_(w)
+                self.vars.append(w)
+                # [ch_out]
+                self.vars.append(nn.Parameter(torch.zeros(param[0])))
             elif name is 'bn':
                 # [ch_out]
                 w = nn.Parameter(torch.ones(param[0]))
@@ -71,25 +86,27 @@ class Generator(nn.Module):
                 self.vars_bn.extend([running_mean, running_var])
             elif name is "random_proj":
                 # [ch_in, ch_out, img_sz]
-                latent_dim, latent_ch_out, emb_dim, emb_ch_out, hw_out = param
-
+                # latent_dim, latent_ch_out, emb_dim, emb_ch_out, hw_out = param
+                # emb_dim, emb_ch_out, hw_out = param
                 # latent projection params
-                w_lat = nn.Parameter(torch.ones(hw_out*hw_out*latent_ch_out, latent_dim))
+                latent_dim, hw_out, rand_ch_out = param
+                w_lat = nn.Parameter(torch.ones(hw_out*hw_out*rand_ch_out, latent_dim))
                 torch.nn.init.kaiming_normal_(w_lat)
 
                 self.vars.append(w_lat)
-                self.vars.append(nn.Parameter(torch.zeros(hw_out*hw_out*latent_ch_out)))
+                self.vars.append(nn.Parameter(torch.zeros(hw_out*hw_out*rand_ch_out)))
 
                 # embedding projection params
-                w_emb = nn.Parameter(torch.ones(hw_out*hw_out*emb_ch_out, emb_dim))
-                torch.nn.init.kaiming_normal_(w_emb)
+                # w_emb = nn.Parameter(torch.ones(hw_out*hw_out*emb_ch_out, emb_dim))
+                # w_emb = nn.Parameter(torch.ones(*param[:4]))
+                # torch.nn.init.kaiming_normal_(w_emb)
 
-                self.vars.append(w_emb)
-                self.vars.append(nn.Parameter(torch.zeros(hw_out*hw_out*emb_ch_out)))
+                # self.vars.append(w_emb)
+                # self.vars.append(nn.Parameter(torch.zeros(hw_out*hw_out*emb_ch_out)))
 
 
             elif name in ['tanh', 'relu', 'upsample', 'avg_pool2d', 'max_pool2d',
-                          'flatten', 'reshape', 'leakyrelu', 'sigmoid']:
+                          'flatten', 'reshape', 'leakyrelu', 'sigmoid', 'identity', 'update_identity', 'encode', 'decode']:
                 continue
             else:
                 raise NotImplementedError
@@ -118,8 +135,10 @@ class Generator(nn.Module):
                 info += tmp + '\n'
 
             elif name is 'random_proj':
-                info += 'random_proj:(hidden_sz:%d, embedding_size:%d, height_width:%d, ch_out:%d)'%(param[0], param[1], param[2], param[3]) + '\n'
-
+                info += 'temp'#'random_proj:(hidden_sz:%d, embedding_size:%d, height_width:%d, ch_out:%d)'%(param[0], param[1], param[2], param[3]) + '\n'
+            
+            elif name is 'encode':
+                info += 'temp'#'random_proj:(hidden_sz:%d, embedding_size:%d, height_width:%d, ch_out:%d)'%(param[0], param[1], param[2], param[3]) + '\n'
 
             elif name is 'avg_pool2d':
                 tmp = 'avg_pool2d:(k:%d, stride:%d, padding:%d)'%(param[0], param[1], param[2])
@@ -127,7 +146,7 @@ class Generator(nn.Module):
             elif name is 'max_pool2d':
                 tmp = 'max_pool2d:(k:%d, stride:%d, padding:%d)'%(param[0], param[1], param[2])
                 info += tmp + '\n'
-            elif name in ['flatten', 'tanh', 'relu', 'upsample', 'reshape', 'sigmoid', 'use_logits', 'bn']:
+            elif name in ['flatten', 'tanh', 'relu', 'upsample', 'reshape', 'sigmoid', 'use_logits', 'bn', 'identity', 'update_identity', 'encode', 'decode']:
                 tmp = name + ':' + str(tuple(param))
                 info += tmp + '\n'
             else:
@@ -151,17 +170,17 @@ class Generator(nn.Module):
 
         batch_sz = x.size()[0]
 
+        x_orig = x
+
         if vars is None:
             vars = self.vars
 
         idx = 0
         bn_idx = 0
 
-        assert self.config[0][0] is 'random_proj'
+        # assert self.config[0][0] is 'random_proj'
         # need to start with the random projection
-
         for name, param in self.config:
-            # print(x[0])
             # print(name)
             if name is 'conv2d':
                 w, b = vars[idx], vars[idx + 1]
@@ -186,33 +205,58 @@ class Generator(nn.Module):
                 x = F.batch_norm(x, running_mean, running_var, weight=w, bias=b, training=bn_training)
                 idx += 2
                 bn_idx += 2
+            elif name is 'encode':
+                x = x.view(x.size(0), -1)
+                w, b = vars[idx], vars[idx + 1]
+                x = F.linear(x, w, b)
+                idx += 2
+            elif name is 'decode':
+                w, b = vars[idx], vars[idx + 1]
+                x = F.linear(x, w, b)
+                x = x.view(x.size(0), 64,28,28)
+                idx += 2
             elif name is 'random_proj':
                 # copying generator architecture from here: https://machinelearningmastery.com/how-to-develop-a-conditional-generative-adversarial-network-from-scratch/
 
-                latent_dim, latent_ch_out, emb_dim, emb_ch_out, hw_out = param
+                # latent_dim, latent_ch_out, emb_dim, emb_ch_out, hw_out = param
+                latent_dim, hw_out, rand_ch_out = param
                 cuda = torch.cuda.is_available()
 
                 # send random tensor to linear layer, reshape into noise channels
                 FloatTensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor 
-                rand = FloatTensor((batch_sz, latent_dim))
-                torch.randn((batch_sz, latent_dim), out=rand, requires_grad=True)
+                rand = FloatTensor((x.size(0),latent_dim))
+                torch.randn(x.size(0),latent_dim, out=rand, requires_grad=True)
                 w_lat, b_lat = vars[idx], vars[idx + 1]
                 rand = F.linear(rand, w_lat, b_lat)
                 rand = F.leaky_relu(rand, 0.2)
-                rand = rand.view(rand.size(0), latent_ch_out, hw_out, hw_out)
+                rand = rand.view(rand.size(0), rand_ch_out, hw_out, hw_out)
+                x = torch.cat((x, rand), 1)
+
+                # w_lat, b_lat = vars[idx], vars[idx + 1]
+
+                # rand = F.linear(rand, w_lat, b_lat)
+                # rand = F.leaky_relu(rand, 0.2)
+                # rand = rand.view(rand.size(0), latent_ch_out, hw_out, hw_out)
 
                 # send class embbeddings through a linear layer, reshape embeddings channels
-                w_emb, b_emb = vars[idx+2], vars[idx + 3]
-                x = F.linear(x, w_emb, b_emb)
-                x = F.leaky_relu(x, 0.2)
-                x = x.view(x.size(0), emb_ch_out, hw_out, hw_out)
+                # w_emb, b_emb = vars[idx+2], vars[idx + 3]
+                # x = F.conv2d(x, w, b, stride=param[4], padding=param[5])
+                # idx += 2
+
+                # x = F.linear(x, w_emb, b_emb)
+                # x = F.leaky_relu(x, 0.2)
+                # x = x.view(x.size(0), emb_ch_out, hw_out, hw_out)
 
                 # concatenate embeddings and projections
-                x = torch.cat((x, rand), 1)
-                idx += 4
+                
 
+                idx += 2
 
-
+            elif name is 'update_identity':
+                x_orig = x
+            elif name is 'identity':
+                # print(x.shape)
+                x += x_orig
             elif name is 'flatten':
                 # print(x.shape)
                 x = x.view(x.size(0), -1)
