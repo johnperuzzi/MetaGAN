@@ -1,3 +1,5 @@
+import matplotlib
+matplotlib.use('Agg')
 import  torch, os
 import  numpy as np
 from    omniglotNShot import OmniglotNShot
@@ -17,22 +19,30 @@ def mkdir_p(path):
             pass
         else: raise
 
-def save_accs(path, accs):
-    file = open(path +  '/q_nway_accuracies.txt', 'ab')
-    np.savetxt(file, np.array([accs["q_nway"]]))
+def save_train_accs(path, accs, epoch):
+    file = open(path +  '/q_nway_train_accuracies.txt', 'ab')
+    np.savetxt(file, [np.insert(accs["q_nway"],0, epoch)])
     file.close()
 
-    file = open(path +  '/q_discrim_accuracies.txt', 'ab')
-    np.savetxt(file, np.array([accs["q_discrim"]]))
+    file = open(path +  '/q_discrim_train_accuracies.txt', 'ab')
+    np.savetxt(file, [np.insert(accs["q_discrim"],0, epoch)])
     file.close()
 
-    file = open(path +  '/gen_nway_accuracies.txt', 'ab')
-    np.savetxt(file, np.array([accs["gen_nway"]]))
+    file = open(path +  '/gen_nway_train_accuracies.txt', 'ab')
+    np.savetxt(file, [np.insert(accs["gen_nway"],0, epoch)])
     file.close()
 
-    file = open(path +  '/gen_discrim_accuracies.txt', 'ab')
-    np.savetxt(file, np.array([accs["gen_discrim"]]))
+    file = open(path +  '/gen_discrim_train_accuracies.txt', 'ab')
+    np.savetxt(file,  [np.insert(accs["gen_discrim"],0, epoch)])
     file.close()
+
+def save_test_accs(path, accs, epoch):
+    file = open(path +  '/q_nway_test_accuracies.txt', 'ab')
+
+    print(np.insert(accs,0, epoch))
+    np.savetxt(file, [np.insert(accs,0, epoch)])
+    file.close()
+
 
 
 def save_imgs(path, imgs, step):
@@ -48,8 +58,8 @@ def save_imgs(path, imgs, step):
     for flat_img in some_imgs:
         img = flat_img.reshape(28,28)
 
-        if i < 49:
-            plt.subplot(7, 7, 1 + i)
+        if i < 50:
+            plt.subplot(5, 10, 1 + i)
             plt.axis('off')
             plt.imshow(img, cmap='Greys')
         i += 1
@@ -75,6 +85,12 @@ def main(args):
     ]
 
     nway_config = [
+        ('conv2d', [64, 1, 3, 3, 2, 0]),
+        ('leakyrelu', [.2, True]),
+        ('bn', [64]),
+        ('conv2d', [64, 64, 3, 3, 2, 0]),
+        ('leakyrelu', [.2, True]),
+        ('bn', [64]),
         ('conv2d', [64, 64, 3, 3, 2, 0]),
         ('relu', [True]),
         ('bn', [64]),
@@ -85,7 +101,14 @@ def main(args):
         ('linear', [args.n_way, 64])
     ]
 
+    # reads in image
     discriminator_config = [
+        ('conv2d', [64, 1, 3, 3, 2, 0]),
+        ('leakyrelu', [.2, True]),
+        ('bn', [64]),
+        ('conv2d', [64, 64, 3, 3, 2, 0]),
+        ('leakyrelu', [.2, True]),
+        ('bn', [64]),
         ('conv2d', [64, 64, 3, 3, 2, 0]),
         ('leakyrelu', [.2, True]),
         ('bn', [64]),
@@ -97,17 +120,54 @@ def main(args):
         # don't use a sigmoid at the end
     ]
 
+    # new gen_config
+    # starts from image and convolves it into new ones
     gen_config = [
-        ('random_proj', [100, 512, 64, 7]), # [latent_dim, emb_size, ch_out, h_out/w_out]
-        # img: (64, 7, 7)
-        ('convt2d', [64, 32, 4, 4, 2, 1]), # [ch_in, ch_out, kernel_sz, kernel_sz, stride, padding]
-        ('bn', [32]),
-        ('relu', [True]),
-        # img: (32, 14, 14)
-        ('convt2d', [32, 1, 4, 4, 2, 1]),
-        # img: (1, 28, 28)
+        ('convt2d', [1, 64, 3, 3, 1, 1]),
+        ('leakyrelu', [.2, True]),
+        ('bn', [64]),
+        ('random_proj', [100, 28, 64]),
+        ('convt2d', [128, 64, 3, 3, 1, 1]),
+        #('convt2d', [1, 128, 4, 4, 2, 1]), # [ch_in, ch_out, kernel_sz, kernel_sz, stride, padding]
+        ('relu', [.2, True]),
+        ('bn', [64]),
+        # ('encode', [1024, 64*28*28]),
+        # ('decode', [64*28*28, 1024]),
+        ('relu', [.2, True]),
+        ('conv2d', [64, 64, 3, 3, 1, 1]),
+        #('convt2d', [1, 128, 4, 4, 2, 1]), # [ch_in, ch_out, kernel_sz, kernel_sz, stride, padding]
+        ('relu', [.2, True]),
+        ('bn', [64]),
+        ('conv2d', [1, 64, 3, 3, 1, 1]),
         ('sigmoid', [True])
     ]
+
+
+    # old gen_config
+    # gen_config = [
+    #     ('random_proj', [100, 512, 64, 7]), # [latent_dim, emb_size, ch_out, h_out/w_out]
+    #     # img: (64, 7, 7)
+    #     ('convt2d', [64, 32, 4, 4, 2, 1]), # [ch_in, ch_out, kernel_sz, kernel_sz, stride, padding]
+    #     ('bn', [32]),
+    #     ('relu', [True]),
+    #     # img: (32, 14, 14)
+    #     ('convt2d', [32, 1, 4, 4, 2, 1]),
+    #     # img: (1, 28, 28)
+    #     ('sigmoid', [True])
+    # ]
+
+    # if args.condition_discrim:
+    #     discriminator_config = [
+    #         ('condition', [512, 1, 6]), # [emb_dim, emb_ch_out, h_out/w_out]
+    #         ('conv2d', [128, 65, 2, 2, 1, 0]),
+    #         ('leakyrelu', [.2, True]),
+    #         ('bn', [128]),
+    #         ('conv2d', [128, 128, 2, 2, 1, 0]),
+    #         ('leakyrelu', [.2, True]),
+    #         ('bn', [128]),
+    #         ('flatten', []),
+    #         ('linear', [1, 2048])
+    #     ]
 
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -135,7 +195,9 @@ def main(args):
         file.write("shared_config = " + json.dumps(shared_config) + "\n" + 
             "nway_config = " + json.dumps(nway_config) + "\n" +
             "discriminator_config = " + json.dumps(discriminator_config) + "\n" + 
-            "gen_config = " + json.dumps(gen_config)
+            "gen_config = " + json.dumps(gen_config)  + "\n" + 
+            "learn_inner_lr = " + str(args.learn_inner_lr)   + "\n" + 
+            "condition_discrim = " + str(args.condition_discrim)
             )
         file.close()
     for step in range(args.epoch):
@@ -146,14 +208,14 @@ def main(args):
         # set traning=True to update running_mean, running_variance, bn_weights, bn_bias
         accs = mamlGAN(x_spt, y_spt, x_qry, y_qry)
 
-        if step % 50 == 0:
+        if step % 30 == 0:
             print("step " + str(step))
             for key in accs.keys():
                 print(key + ": " + str(accs[key]))
             if save_model:
-                save_accs(path, accs)
-
+                save_train_accs(path, accs, int(step))
         if step % 500 == 0:
+            print("testing")
             accs = []
             imgs = []
             for _ in range(1000//args.tasks_per_batch):
@@ -166,9 +228,16 @@ def main(args):
                 for x_spt_one, y_spt_one, x_qry_one, y_qry_one in zip(x_spt, y_spt, x_qry, y_qry):
                     test_acc, ims = mamlGAN.finetunning(x_spt_one, y_spt_one, x_qry_one, y_qry_one)
                     accs.append( test_acc)
+                    imgs.append(x_spt_one.cpu().detach().numpy())
                     imgs.append(ims.cpu().detach().numpy())
+                    if args.single_fast_test:
+                        break
+                if args.single_fast_test: 
+                    break
 
+            accs = np.array(accs).mean(axis=0).astype(np.float16)
             if save_model:
+                save_test_accs(path, accs, int(step))
                 imgs = np.array(imgs)
                 save_imgs(path, imgs, step)
 
@@ -195,6 +264,7 @@ if __name__ == '__main__':
     argparser.add_argument('--tasks_per_batch', type=int, help='meta batch size, i.e. number of tasks per batch', default=32)
     argparser.add_argument('--meta_lr', type=float, help='meta-level outer learning rate', default=1e-3)
     argparser.add_argument('--update_lr', type=float, help='task-level inner update learning rate', default=0.4)
+    argparser.add_argument('--gan_update_lr', type=float, help='task-level inner update learning rate', default=0.4)
     argparser.add_argument('--update_steps', type=int, help='task-level inner update steps', default=5)
     argparser.add_argument('--update_steps_test', type=int, help='update steps for finetunning', default=10)
     argparser.add_argument('--no_save', default=False, action='store_true', help='Bool type. Pass to not save (right now we save by default)')
@@ -202,7 +272,11 @@ if __name__ == '__main__':
     argparser.add_argument('--condition_discrim', default=False, action='store_true', help='Bool type. Pass to remove n_way loss from generator and condition discriminator')
     argparser.add_argument('--create_graph', default=False, action='store_true', help='Sets the "create_graph" flag for the inner gradients')
     argparser.add_argument('--loss', default="cross_entropy", help='can use "wasserstein"')
+    argparser.add_argument('--single_fast_test', default=False, action='store_true', help='Do one really fast test instead of waiting for tons of examples')
+    argparser.add_argument('--gen_reg_w', type=float, help='regularize generator to be meta-helpful', default=0.0)
 
     args = argparser.parse_args()
 
     main(args)
+
+

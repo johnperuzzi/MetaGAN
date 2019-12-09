@@ -165,7 +165,9 @@ def main():
         file.write("shared_config = " + json.dumps(shared_config) + "\n" + 
             "nway_config = " + json.dumps(nway_config) + "\n" +
             "discriminator_config = " + json.dumps(discriminator_config) + "\n" + 
-            "gen_config = " + json.dumps(gen_config)
+            "gen_config = " + json.dumps(gen_config)  + "\n" + 
+            "learn_inner_lr = " + str(args.learn_inner_lr)   + "\n" + 
+            "condition_discrim = " + str(args.condition_discrim)
             )
         file.close()
 

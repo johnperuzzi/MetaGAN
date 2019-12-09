@@ -69,18 +69,19 @@ class Learner(nn.Module):
 
             elif name is "condition":
                 # [out, img_rep, label_sz]
-                out, img_rep, label_sz = param
+                emb_dim, emb_ch_out, hw_out = param
 
-                w = nn.Parameter(torch.ones(out, img_rep + label_sz))
+                w = nn.Parameter(torch.ones(emb_ch_out*hw_out*hw_out, emb_dim))
                 torch.nn.init.kaiming_normal_(w)
 
                 self.vars.append(w)
-                self.vars.append(nn.Parameter(torch.zeros(out)))
+                self.vars.append(nn.Parameter(torch.zeros(emb_ch_out*hw_out*hw_out)))
 
             elif name in ['tanh', 'relu', 'upsample', 'avg_pool2d', 'max_pool2d',
                           'flatten', 'reshape', 'leakyrelu', 'sigmoid']:
                 continue
             else:
+                print("init", name)
                 raise NotImplementedError
 
 
@@ -110,6 +111,9 @@ class Learner(nn.Module):
                 tmp = 'leakyrelu:(slope:%f)'%(param[0])
                 info += tmp + '\n'
 
+            elif name is 'condition':
+                tmp = 'condition:(out:%d, img_rep:%d, label_sz:%d)'%(param[0], param[1], param[2])
+                info += tmp + '\n'
 
             elif name is 'avg_pool2d':
                 tmp = 'avg_pool2d:(k:%d, stride:%d, padding:%d)'%(param[0], param[1], param[2])
@@ -121,13 +125,14 @@ class Learner(nn.Module):
                 tmp = name + ':' + str(tuple(param))
                 info += tmp + '\n'
             else:
+                print("extra", name)
                 raise NotImplementedError
 
         return info
 
 
 
-    def forward(self, x, labels=None, vars=None, bn_training=True):
+    def forward(self, x, conditions=None, vars=None, bn_training=True):
         """
         This function can be called by finetunning, however, in finetunning, we dont wish to update
         running_mean/running_var. Thought weights/bias of bn is updated, it has been separated by fast_weights.
@@ -192,21 +197,21 @@ class Learner(nn.Module):
             elif name is 'avg_pool2d':
                 x = F.avg_pool2d(x, param[0], param[1], param[2])
             elif name is 'condition':
-                out, img_rep, label_sz = param
-                # y_onehot = torch.FloatTensor(len(labels), 5)
-                # y_onehot.zero_()
-                # y_onehot.scatter_(1, labels, 1)
-                assert type(labels) != type(None)
+                emb_dim, emb_ch_out, hw_out = param
 
-                one_hot = torch.zeros(len(labels), labels.max()+1).scatter_(1, labels.unsqueeze(1), 1.)
-                x = torch.cat((x, one_hot), -1)
+                assert type(conditions) != type(None)
+
                 w, b = vars[idx], vars[idx + 1]
-                x = F.linear(x, w, b)
+                conditions = F.linear(conditions, w, b)
+                conditions = conditions.view(conditions.size(0), emb_ch_out, hw_out, hw_out)
+                x = torch.cat((x, conditions), 1)
+
+
                 idx += 2
 
             else:
+                print("fwd", name)
                 raise NotImplementedError
-
         # make sure variable is used properly
         assert idx == len(vars)
         assert bn_idx == len(self.vars_bn)
