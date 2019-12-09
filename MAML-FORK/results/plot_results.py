@@ -17,8 +17,8 @@ def main():
 	if args.nway_test:
 		nway_test_accuracies = np.genfromtxt(folder + '/q_nway_test_accuracies.txt')[:,1:]
 		nway_test_accuracies = nway_test_accuracies.reshape(len(nway_test_accuracies), 16, -1)[:,:,-1].mean(axis=-1)
+		print(nway_test_accuracies)
 		nway_test_epochs = np.genfromtxt(folder + '/q_nway_test_accuracies.txt')[:,0]
-
 
 	if args.q_nway:
 		plt.plot(q_nway_epochs, q_nway_accuracies, label = 'query nway')

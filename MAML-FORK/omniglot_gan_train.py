@@ -236,6 +236,7 @@ def main(args):
                     break
 
             if save_model:
+                accs = np.array(accs).mean(axis=0).astype(np.float16)
                 save_test_accs(path, accs, int(step))
                 imgs = np.array(imgs)
                 save_imgs(path, imgs, step)
@@ -263,7 +264,7 @@ if __name__ == '__main__':
     argparser.add_argument('--tasks_per_batch', type=int, help='meta batch size, i.e. number of tasks per batch', default=32)
     argparser.add_argument('--meta_lr', type=float, help='meta-level outer learning rate', default=1e-3)
     argparser.add_argument('--update_lr', type=float, help='task-level inner update learning rate', default=0.4)
-    argparser.add_argument('--gan_update_lr', type=float, help='task-level inner update learning rate', default=0.001)
+    argparser.add_argument('--gan_update_lr', type=float, help='task-level inner update learning rate', default=0.4)
     argparser.add_argument('--update_steps', type=int, help='task-level inner update steps', default=5)
     argparser.add_argument('--update_steps_test', type=int, help='update steps for finetunning', default=10)
     argparser.add_argument('--no_save', default=False, action='store_true', help='Bool type. Pass to not save (right now we save by default)')
