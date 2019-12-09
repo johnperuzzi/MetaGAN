@@ -139,7 +139,6 @@ def main(args):
             )
         file.close()
     for step in range(args.epoch):
-
         x_spt, y_spt, x_qry, y_qry = db_train.next()
         x_spt, y_spt, x_qry, y_qry = torch.from_numpy(x_spt).to(device), torch.from_numpy(y_spt).to(device), \
                                      torch.from_numpy(x_qry).to(device), torch.from_numpy(y_qry).to(device)
