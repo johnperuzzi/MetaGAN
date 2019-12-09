@@ -1,3 +1,5 @@
+import matplotlib
+matplotlib.use('Agg')
 import  torch, os
 import  numpy as np
 from    omniglotNShot import OmniglotNShot
