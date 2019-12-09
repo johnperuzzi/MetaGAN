@@ -15,8 +15,9 @@ def main():
 	gen_discrim_accuracies = np.genfromtxt(folder + '/gen_discrim_train_accuracies.txt')[:,-1]
 	gen_discrim_epochs = np.genfromtxt(folder + '/q_nway_train_accuracies.txt')[:,0]
 	if args.nway_test:
-		nway_test_accuracies = np.genfromtxt(folder + '/q_nway_test_accuracies.txt')[:,-1]
-		nway_test_epochs = np.genfromtxt(folder + '/q_nway_train_accuracies.txt')[:,0]
+		nway_test_accuracies = np.genfromtxt(folder + '/q_nway_test_accuracies.txt')[:,1:]
+		nway_test_accuracies = nway_test_accuracies.reshape(len(nway_test_accuracies), 16, -1)[:,:,-1].mean(axis=-1)
+		nway_test_epochs = np.genfromtxt(folder + '/q_nway_test_accuracies.txt')[:,0]
 
 
 	if args.q_nway:

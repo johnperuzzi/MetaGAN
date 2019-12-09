@@ -191,7 +191,7 @@ class MetaGAN(nn.Module):
         s_weights = shared_weights
 
         g_grad = torch.autograd.grad(gen_loss, gen_weights, create_graph=self.create_graph)
-        g_weights = [w - self.gan_update_lr * grad for grad, w in zip(g_grad, gen_weights)]
+        g_weights = [w - self.update_lr * grad for grad, w in zip(g_grad, gen_weights)]
 
         return (s_weights, n_weights, d_weights), g_weights
 
