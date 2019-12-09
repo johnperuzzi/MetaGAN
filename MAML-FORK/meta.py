@@ -83,7 +83,7 @@ class Meta(nn.Module):
             # 1. run the i-th task and compute loss for k=0
             logits = self.net(x_spt[i], vars=None, bn_training=True)
             loss = F.cross_entropy(logits, y_spt[i])
-            grad = torch.autograd.grad(loss, self.net.parameters(), create_graph=True)
+            grad = torch.autograd.grad(loss, self.net.parameters(), create_graph=True, retain_graph=True)
             fast_weights = list(map(lambda p: p[1] - self.update_lr * p[0], zip(grad, self.net.parameters())))
 
             # this is the loss and accuracy before first update
@@ -118,7 +118,7 @@ class Meta(nn.Module):
                 logits = self.net(x_spt[i], vars=fast_weights, bn_training=True)
                 loss = F.cross_entropy(logits, y_spt[i])
                 # 2. compute grad on theta_pi
-                grad = torch.autograd.grad(loss, fast_weights, create_graph=True)
+                grad = torch.autograd.grad(loss, fast_weights, create_graph=True, retain_graph=True)
                 # 3. theta_pi = theta_pi - train_lr * grad
                 fast_weights = list(map(lambda p: p[1] - self.update_lr * p[0], zip(grad, fast_weights)))
 
@@ -174,7 +174,7 @@ class Meta(nn.Module):
         # 1. run the i-th task and compute loss for k=0
         logits = net(x_spt)
         loss = F.cross_entropy(logits, y_spt)
-        grad = torch.autograd.grad(loss, net.parameters(), create_graph=True)
+        grad = torch.autograd.grad(loss, net.parameters(), create_graph=True, retain_graph=True)
         fast_weights = list(map(lambda p: p[1] - self.update_lr * p[0], zip(grad, net.parameters())))
 
         # this is the loss and accuracy before first update
@@ -202,7 +202,7 @@ class Meta(nn.Module):
             logits = net(x_spt, vars=fast_weights, bn_training=True)
             loss = F.cross_entropy(logits, y_spt)
             # 2. compute grad on theta_pi
-            grad = torch.autograd.grad(loss, fast_weights, create_graph=True)
+            grad = torch.autograd.grad(loss, fast_weights, create_graph=True, retain_graph=True)
             # 3. theta_pi = theta_pi - train_lr * grad
             fast_weights = list(map(lambda p: p[1] - self.update_lr * p[0], zip(grad, fast_weights)))
 

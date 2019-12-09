@@ -235,8 +235,8 @@ def main(args):
                 if args.single_fast_test: 
                     break
 
+            accs = np.array(accs).mean(axis=0).astype(np.float16)
             if save_model:
-                accs = np.array(accs).mean(axis=0).astype(np.float16)
                 save_test_accs(path, accs, int(step))
                 imgs = np.array(imgs)
                 save_imgs(path, imgs, step)
