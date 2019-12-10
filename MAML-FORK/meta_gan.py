@@ -48,7 +48,7 @@ class MetaGAN(nn.Module):
         # http://deeplearning.net/software/theano_versions/dev/tutorial/conv_arithmetic.html
         # https://github.com/soumith/dcgan.torch/blob/master/main.lua
         self.generator = Generator(gen_config, args.img_c, args.img_sz, args.n_way)
-        self.generator_reg = Generator(gen_config, args.img_c, args.img_sz, args.n_way)
+        # self.generator_reg = Generator(gen_config, args.img_c, args.img_sz, args.n_way)
 
         self.shared_net = Learner(shared_config, args.img_c, args.img_sz)
         self.nway_net = Learner(nway_config, args.img_c, args.img_sz)
@@ -56,7 +56,7 @@ class MetaGAN(nn.Module):
         self.gen_reg_w = args.gen_reg_w
 
         params = list(self.shared_net.parameters()) + list(self.nway_net.parameters()) + list(self.discrim_net.parameters())
-        params += list(self.generator.parameters()) + list(self.generator_reg.parameters())
+        params += list(self.generator.parameters())# + list(self.generator_reg.parameters())
 
         cuda = torch.cuda.is_available()
         self.FloatTensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor 
@@ -231,16 +231,15 @@ class MetaGAN(nn.Module):
             nets = (self.shared_net, self.nway_net, self.discrim_net)
 
 
-        net_weights = [net.parameters() for net in nets]
-
         # inner_g_optim = optim.Adam(gen_weights, 1e-3, betas=(0.5, 0.999))
         # inner_d_optim = optim.Adam(net_weights[2], 1e-3, betas=(0.5, 0.999))
         # check if I need to copy these like this or can do as above
-        # net_weights = []
-        # for net in nets:
-        #     net_weights.append([w.clone() for w in net.parameters()])
+        net_weights = []
+        for net in nets:
+            net_weights.append([w.clone() for w in net.parameters()])
 
-        gen_weights = self.generator.parameters()
+        gen_weights = [w.clone() for w in self.generator.parameters()]
+       
 
         # inner_g_optim = optim.Adam(gen_weights, 1e-3, betas=(0.5, 0.999))
         # inner_d_optim = optim.Adam(net_weights[2], 1e-3, betas=(0.5, 0.999))
@@ -294,15 +293,15 @@ class MetaGAN(nn.Module):
                 discrim_loss = (gen_discrim_loss + real_discrim_loss) / 2
                 shared_loss = nway_loss + discrim_loss  #
 
-                # this needs to be updated/modified for wasserstein
-                if self.condition_discrim:
-                    gen_loss = -1 * torch.nn.functional.logsigmoid(gen_discrim_logits).mean()#- gen_discrim_loss #
-                else:
-                    gen_reg_weights = self.generator_reg.parameters()
-                    reg = 0
-                    for t1, t2 in zip(gen_reg_weights, gen_weights):
-                        reg += torch.norm(t1-t2)
-                    gen_loss = - gen_discrim_loss + self.gen_reg_w*reg #gen_nway_loss 
+                gen_loss = -1 * torch.nn.functional.logsigmoid(gen_discrim_logits).mean() #- gen_discrim_loss
+                # if self.condition_discrim:
+                #     gen_loss = -1 * torch.nn.functional.logsigmoid(gen_discrim_logits).mean()#- gen_discrim_loss #
+                # else:
+                #     gen_reg_weights = self.generator_reg.parameters()
+                #     reg = 0
+                #     for t1, t2 in zip(gen_reg_weights, gen_weights):
+                #         reg += torch.norm(t1-t2)
+                #     gen_loss = - gen_discrim_loss + self.gen_reg_w*reg #gen_nway_loss 
 
             # 2. compute grad on theta_pi
             net_losses = (shared_loss, nway_loss, discrim_loss)
