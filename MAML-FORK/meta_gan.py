@@ -229,11 +229,7 @@ class MetaGAN(nn.Module):
 
         if type(nets) == type(None):
             nets = (self.shared_net, self.nway_net, self.discrim_net)
-
-
-        # inner_g_optim = optim.Adam(gen_weights, 1e-3, betas=(0.5, 0.999))
-        # inner_d_optim = optim.Adam(net_weights[2], 1e-3, betas=(0.5, 0.999))
-        # check if I need to copy these like this or can do as above
+            
         net_weights = []
         for net in nets:
             net_weights.append([w.clone() for w in net.parameters()])
