@@ -229,12 +229,15 @@ class MetaGAN(nn.Module):
 
         if type(nets) == type(None):
             nets = (self.shared_net, self.nway_net, self.discrim_net)
-            
-        net_weights = []
-        for net in nets:
-            net_weights.append([w.clone() for w in net.parameters()])
 
-        gen_weights = [w.clone() for w in self.generator.parameters()]
+        # net_weights = []
+        # for net in nets:
+        #     net_weights.append([w.clone() for w in net.parameters()])
+
+        # gen_weights = [w.clone() for w in self.generator.parameters()]
+
+        net_weights = [net.parameters() for net in nets]
+        gen_weights = self.generator.parameters()
        
 
         # inner_g_optim = optim.Adam(gen_weights, 1e-3, betas=(0.5, 0.999))
