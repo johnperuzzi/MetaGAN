@@ -111,6 +111,12 @@ def main():
         test(db, net, device, epoch, log)
         plot(log, args)
 
+def run_inner(x, y, n_inner_iter, fnet, diffopt):
+    for _ in range(n_inner_iter):
+        spt_logits, learned_cost = fnet(x)
+        spt_loss = F.cross_entropy(spt_logits, y)
+        tot_loss = spt_loss + torch.mean(learned_cost)
+        diffopt.step(tot_loss)
 
 def train(db, net, device, meta_opt, epoch, log):
     net.train()
@@ -144,15 +150,12 @@ def train(db, net, device, meta_opt, epoch, log):
                 # This adapts the model's meta-parameters to the task.
                 # higher is able to automatically keep copies of
                 # your network's parameters as they are being updated.
-                for _ in range(n_inner_iter):
-                    spt_logits = fnet(x_spt[i])
-                    spt_loss = F.cross_entropy(spt_logits, y_spt[i])
-                    diffopt.step(spt_loss)
+                run_inner(x_spt[i], y_spt[i], n_inner_iter, fnet, diffopt)
 
                 # The final set of adapted parameters will induce some
                 # final loss and accuracy on the query dataset.
                 # These will be used to update the model's meta-parameters.
-                qry_logits = fnet(x_qry[i])
+                qry_logits, _ = fnet(x_qry[i]) # dont use learned cost in outer loop
                 qry_loss = F.cross_entropy(qry_logits, y_qry[i])
                 qry_losses.append(qry_loss.detach())
                 qry_acc = (qry_logits.argmax(
@@ -212,10 +215,7 @@ def test(db, net, device, epoch, log):
                 # Optimize the likelihood of the support set by taking
                 # gradient steps w.r.t. the model's parameters.
                 # This adapts the model's meta-parameters to the task.
-                for _ in range(n_inner_iter):
-                    spt_logits = fnet(x_spt[i])
-                    spt_loss = F.cross_entropy(spt_logits, y_spt[i])
-                    diffopt.step(spt_loss)
+                run_inner(x_spt[i], y_spt[i], n_inner_iter, fnet, diffopt)
 
                 # The query loss and acc induced by these parameters.
                 qry_logits = fnet(x_qry[i]).detach()
