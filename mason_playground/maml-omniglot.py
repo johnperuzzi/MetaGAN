@@ -104,16 +104,19 @@ def main():
     net = SelfLearnedNet(args.n_way, device).to(device)
 
     cost_net = nn.Sequential( # removed flatten
-            nn.Linear(64*3*3 + 1, 128), # plus one for the concat of 0/1
+            nn.Linear(64*3*3 + 1, 256), # plus one for the concat of 0/1
+            nn.BatchNorm1d(256, momentum=1, affine=True),
+            nn.ReLU(inplace=True),
+
+            nn.Linear(256, 128),
             nn.BatchNorm1d(128, momentum=1, affine=True),
-            nn.LeakyReLU(inplace=True),
-            # nn.Linear(128, 64), 
-            # nn.BatchNorm1d(64, momentum=1, affine=True),
-            # nn.LeakyReLU(inplace=True),
-            nn.Linear(128, 32),
-            nn.BatchNorm1d(32, momentum=1, affine=True),
-            nn.LeakyReLU(inplace=True),
-            nn.Linear(32, 1),
+            nn.ReLU(inplace=True),
+
+            nn.Linear(128, 128),
+            nn.BatchNorm1d(128, momentum=1, affine=True),
+            nn.ReLU(inplace=True),
+
+            nn.Linear(128, 1),
             # nn.BatchNorm1d(1, momentum=1, affine=True)
             ).to(device)
             # maybe add batch norm to end to keep around 1?
@@ -312,7 +315,7 @@ def plot(log, args):
     ax.set_ylim(70, 100)
     fig.legend(ncol=2, loc='lower right')
     fig.tight_layout()
-    fname = 'maml-accs_nway_' + str(args.n_way) + "_k_shot_" + str(args.k_spt) + "_k_qry_" + str(args.k_qry) + "_with_generator_" +'.png' 
+    fname = 'maml-accs_nway_' + str(args.n_way) + "_k_shot_" + str(args.k_spt) + "_k_qry_" + str(args.k_qry) + "_with_generator_more_complex" +'.png' 
     print(f'--- Plotting accuracy to {fname}')
     fig.savefig(fname)
     plt.close(fig)

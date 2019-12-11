@@ -13,16 +13,21 @@ class SelfLearnedNet(nn.Module):
         self.latent_dim = 100
 
         self.shared_net = nn.Sequential(
-            nn.Conv2d(1, 64, 3),
+            nn.Conv2d(1, 64, 3, stride=2),
             nn.BatchNorm2d(64, momentum=1, affine=True),
             nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, 2),
-            nn.Conv2d(64, 64, 3),
+            # # nn.MaxPool2d(2, 2),
+            nn.Conv2d(64, 64, 2, stride=1), # added this in
             nn.BatchNorm2d(64, momentum=1, affine=True),
             nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, 2),
-            nn.Conv2d(64, 64, 3),
-            nn.BatchNorm2d(64, momentum=1, affine=True)).to(device)
+
+            nn.Conv2d(64, 64, 3, stride=2),
+            nn.BatchNorm2d(64, momentum=1, affine=True),
+            nn.ReLU(),
+            # nn.MaxPool2d(2, 2),
+            nn.Conv2d(64, 64, 3, stride=1),
+            nn.BatchNorm2d(64, momentum=1, affine=True)
+            ).to(device)
 
 
         self.nway_net = nn.Sequential(
@@ -34,21 +39,32 @@ class SelfLearnedNet(nn.Module):
 
         # generator code
         self.device = device
-        self.rand_hw_out = 7
+        self.rand_hw_out = 3
         self.rand_ch_out = 64
         self.gen_net = []
 
         self.random_proj = nn.Linear(self.latent_dim, self.rand_hw_out*self.rand_hw_out*self.rand_ch_out)
 
+        # gen_net 1
+        # self.gen_net = nn.Sequential(
+        #     nn.ConvTranspose2d(self.rand_ch_out, 32, 4, stride=2, padding=1), # [ch_in, ch_out, kernel_sz, stride, padding]
+        #     nn.BatchNorm2d(32, momentum=1, affine=True),
+        #     nn.ReLU(inplace=True),
+        #     nn.ConvTranspose2d(32, 1, 4, stride=2, padding=1),
+        #     nn.Sigmoid()
+        #     ).to(device)
 
+        # gen_net 2
         self.gen_net = nn.Sequential(
-            nn.ConvTranspose2d(self.rand_ch_out, 32, 4, stride=2, padding=1), # [ch_in, ch_out, kernel_sz, stride, padding]
-            nn.BatchNorm2d(32, momentum=1, affine=True),
-            nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(32, 1, 4, stride=2, padding=1),
-            nn.Sigmoid()
-            ).to(device)
-
+                nn.ConvTranspose2d(self.rand_ch_out, 64, 4, stride=2, padding=1), # [ch_in, ch_out, kernel_sz, stride, padding]
+                nn.BatchNorm2d(64, momentum=1, affine=True), # height/width = 6
+                nn.ReLU(inplace=True),
+                nn.ConvTranspose2d(64, 32, 4, stride=2, padding=0),
+                nn.BatchNorm2d(32, momentum=1, affine=True), # height/width = 14
+                nn.ReLU(inplace=True),
+                nn.ConvTranspose2d(32, 1, 4, stride=2, padding=1),
+                nn.Sigmoid()
+                ).to(device)
 
 
     def gen(self, num):
@@ -58,11 +74,14 @@ class SelfLearnedNet(nn.Module):
         x = x.view(num, self.rand_ch_out, self.rand_hw_out, self.rand_hw_out)
 
         x = self.gen_net(x)
+
         return x
 
 
     def forward(self, x, cost=True):
         shared_rep = self.shared_net(x)
+        # print(shared_rep.shape)
+        # quit()
         nway_logits = self.nway_net(shared_rep)
         if not cost:
             return nway_logits
