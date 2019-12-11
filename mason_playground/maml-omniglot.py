@@ -59,6 +59,7 @@ def main():
         help='meta batch size, namely task num',
         default=32)
     argparser.add_argument('--seed', type=int, help='random seed', default=1)
+    argparser.add_argument('-v', '--verbose', action="store_true", default=False)
     args = argparser.parse_args()
 
     torch.manual_seed(args.seed)
@@ -124,11 +125,11 @@ def main():
 
     log = []
     for epoch in range(100):
-        train(db, net, cost_net, device, meta_opt, epoch, log)
-        test(db, net, cost_net, device, epoch, log)
+        train(db, net, cost_net, device, meta_opt, epoch, log, args.verbose)
+        test(db, net, cost_net, device, epoch, log, args.verbose)
         plot(log, args)
 
-def run_inner(x, y, n_inner_iter, fnet, diffopt, cost_net):
+def run_inner(x, y, n_inner_iter, fnet, diffopt, cost_net, verbose):
     for _ in range(n_inner_iter):
         spt_logits, shared_activations = fnet(x)
         spt_loss = F.cross_entropy(spt_logits, y)
@@ -137,11 +138,11 @@ def run_inner(x, y, n_inner_iter, fnet, diffopt, cost_net):
         learned_cost = torch.mean(learned_cost)
 
         tot_loss = spt_loss + learned_cost
-
-        print(spt_loss.data, learned_cost.data)
+        if verbose:
+            print(spt_loss.data, learned_cost.data)
         diffopt.step(tot_loss)
 
-def train(db, net, cost_net, device, meta_opt, epoch, log):
+def train(db, net, cost_net, device, meta_opt, epoch, log, verbose):
     net.train()
     n_train_iter = db.x_train.shape[0] // db.batchsz
 
@@ -165,7 +166,8 @@ def train(db, net, cost_net, device, meta_opt, epoch, log):
         qry_accs = []
         meta_opt.zero_grad()
         for i in range(task_num):
-            print("task: " + str(i))
+            if verbose:
+                print("task: " + str(i))
             with higher.innerloop_ctx(
                 net, inner_opt, copy_initial_weights=False
             ) as (fnet, diffopt):
@@ -174,7 +176,7 @@ def train(db, net, cost_net, device, meta_opt, epoch, log):
                 # This adapts the model's meta-parameters to the task.
                 # higher is able to automatically keep copies of
                 # your network's parameters as they are being updated.
-                run_inner(x_spt[i], y_spt[i], n_inner_iter, fnet, diffopt, cost_net)
+                run_inner(x_spt[i], y_spt[i], n_inner_iter, fnet, diffopt, cost_net, verbose)
 
                 # The final set of adapted parameters will induce some
                 # final loss and accuracy on the query dataset.
@@ -210,7 +212,7 @@ def train(db, net, cost_net, device, meta_opt, epoch, log):
         })
 
 
-def test(db, net, cost_net, device, epoch, log):
+def test(db, net, cost_net, device, epoch, log, verbose):
     # Crucially in our testing procedure here, we do *not* fine-tune
     # the model during testing for simplicity.
     # Most research papers using MAML for this task do an extra
@@ -239,10 +241,10 @@ def test(db, net, cost_net, device, epoch, log):
                 # Optimize the likelihood of the support set by taking
                 # gradient steps w.r.t. the model's parameters.
                 # This adapts the model's meta-parameters to the task.
-                run_inner(x_spt[i], y_spt[i], n_inner_iter, fnet, diffopt, cost_net)
+                run_inner(x_spt[i], y_spt[i], n_inner_iter, fnet, diffopt, cost_net, verbose)
 
                 # The query loss and acc induced by these parameters.
-                qry_logits, _ = fnet(x_qry[i], cost=False).detach()
+                qry_logits, _ = fnet(x_qry[i]).detach()
                 qry_loss = F.cross_entropy(
                     qry_logits, y_qry[i], reduction='none')
                 qry_losses.append(qry_loss.detach())
