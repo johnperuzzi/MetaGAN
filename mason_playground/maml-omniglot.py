@@ -261,9 +261,9 @@ def test(db, net, cost_net, device, epoch, log, verbose, writer):
                 # This adapts the model's meta-parameters to the task.
                 spt_losses, learned_costs = run_inner(x_spt[i], y_spt[i], n_inner_iter, fnet, diffopt, cost_net, verbose)
                 for spt_loss, learned_cost in zip(spt_losses, learned_costs):
+                    writer['writer'].add_scalar('Test/spt_losses', spt_loss, writer['test_idx'])
+                    writer['writer'].add_scalar('Test/learned_costs', learned_cost, writer['test_idx'])
                     writer['test_idx'] += 1 
-                    writer['writer'].add_scalar('Train/spt_losses', spt_loss, writer['test_idx'])
-                    writer['writer'].add_scalar('Train/learned_costs', learned_cost, writer['test_idx'])
 
                 # The query loss and acc induced by these parameters.
                 qry_logits = fnet(x_qry[i], cost=False).detach()
