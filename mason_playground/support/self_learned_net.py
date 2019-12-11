@@ -44,9 +44,12 @@ class SelfLearnedNet(nn.Module):
             nn.BatchNorm1d(1, momentum=1, affine=True)).to(device)
             # maybe add batch norm to end to keep around 1?
 
-    def forward(self, x):
+    def forward(self, x, cost=True):
         shared_rep = self.shared_net(x)
         nway_logits = self.nway_net(shared_rep)
-        cost = self.cost_net(shared_rep)
-        return nway_logits, cost
+        if not cost:
+            return nway_logits
+
+        learned_cost = self.cost_net(shared_rep)
+        return nway_logits, learned_cost
         
