@@ -44,6 +44,7 @@ import higher
 
 from support.omniglot_loaders import OmniglotNShot
 from support.self_learned_net import SelfLearnedNet
+from torch.utils.tensorboard import SummaryWriter
 
 
 def main():
@@ -123,13 +124,19 @@ def main():
     meta_opt = optim.Adam([{'params' : net.parameters()},
                         {'params' : cost_net.parameters()}], lr=1e-3)
 
+    writer = {"writer" : SummaryWriter(), "train_idx" : 0, "test_idx" : 0}
+
     log = []
     for epoch in range(100):
-        train(db, net, cost_net, device, meta_opt, epoch, log, args.verbose)
-        test(db, net, cost_net, device, epoch, log, args.verbose)
+        train(db, net, cost_net, device, meta_opt, epoch, log, args.verbose, writer)
+        test(db, net, cost_net, device, epoch, log, args.verbose, writer)
         plot(log, args)
 
+    writer['writer'].close()
+
 def run_inner(x, y, n_inner_iter, fnet, diffopt, cost_net, verbose):
+    learned_costs = []
+    spt_losses = []
     for _ in range(n_inner_iter):
         spt_logits, shared_activations = fnet(x)
         spt_loss = F.cross_entropy(spt_logits, y)
@@ -138,11 +145,17 @@ def run_inner(x, y, n_inner_iter, fnet, diffopt, cost_net, verbose):
         learned_cost = torch.mean(learned_cost)
 
         tot_loss = spt_loss + learned_cost
-        if verbose:
-            print(spt_loss.data, learned_cost.data)
-        diffopt.step(tot_loss)
 
-def train(db, net, cost_net, device, meta_opt, epoch, log, verbose):
+        # logging
+        spt_losses.append(spt_loss.detach())
+        learned_costs.append(learned_cost.detach())
+        if verbose:
+            print(spt_loss.detach(), learned_cost.detach())
+
+        diffopt.step(tot_loss)
+    return spt_losses, learned_costs
+
+def train(db, net, cost_net, device, meta_opt, epoch, log, verbose, writer):
     net.train()
     n_train_iter = db.x_train.shape[0] // db.batchsz
 
@@ -176,7 +189,12 @@ def train(db, net, cost_net, device, meta_opt, epoch, log, verbose):
                 # This adapts the model's meta-parameters to the task.
                 # higher is able to automatically keep copies of
                 # your network's parameters as they are being updated.
-                run_inner(x_spt[i], y_spt[i], n_inner_iter, fnet, diffopt, cost_net, verbose)
+                spt_losses, learned_costs = run_inner(x_spt[i], y_spt[i], n_inner_iter, fnet, diffopt, cost_net, verbose)
+
+                for spt_loss, learned_cost in zip(spt_losses, learned_costs):
+                    writer['writer'].add_scalar('Train/spt_losses', spt_loss, writer['train_idx'])
+                    writer['writer'].add_scalar('Train/learned_costs', learned_cost, writer['train_idx'])
+                    writer['train_idx'] += 1 
 
                 # The final set of adapted parameters will induce some
                 # final loss and accuracy on the query dataset.
@@ -212,7 +230,7 @@ def train(db, net, cost_net, device, meta_opt, epoch, log, verbose):
         })
 
 
-def test(db, net, cost_net, device, epoch, log, verbose):
+def test(db, net, cost_net, device, epoch, log, verbose, writer):
     # Crucially in our testing procedure here, we do *not* fine-tune
     # the model during testing for simplicity.
     # Most research papers using MAML for this task do an extra
@@ -241,7 +259,11 @@ def test(db, net, cost_net, device, epoch, log, verbose):
                 # Optimize the likelihood of the support set by taking
                 # gradient steps w.r.t. the model's parameters.
                 # This adapts the model's meta-parameters to the task.
-                run_inner(x_spt[i], y_spt[i], n_inner_iter, fnet, diffopt, cost_net, verbose)
+                spt_losses, learned_costs = run_inner(x_spt[i], y_spt[i], n_inner_iter, fnet, diffopt, cost_net, verbose)
+                for spt_loss, learned_cost in zip(spt_losses, learned_costs):
+                    writer['test_idx'] += 1 
+                    writer['writer'].add_scalar('Train/spt_losses', spt_loss, writer['test_idx'])
+                    writer['writer'].add_scalar('Train/learned_costs', learned_cost, writer['test_idx'])
 
                 # The query loss and acc induced by these parameters.
                 qry_logits = fnet(x_qry[i], cost=False).detach()
