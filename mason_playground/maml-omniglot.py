@@ -181,7 +181,7 @@ def train(db, net, cost_net, device, meta_opt, epoch, log, verbose):
                 # The final set of adapted parameters will induce some
                 # final loss and accuracy on the query dataset.
                 # These will be used to update the model's meta-parameters.
-                qry_logits, _ = fnet(x_qry[i]) # dont use learned cost in outer loop
+                qry_logits = fnet(x_qry[i], cost=False)
                 qry_loss = F.cross_entropy(qry_logits, y_qry[i])
                 qry_losses.append(qry_loss.detach())
                 qry_acc = (qry_logits.argmax(
@@ -244,7 +244,7 @@ def test(db, net, cost_net, device, epoch, log, verbose):
                 run_inner(x_spt[i], y_spt[i], n_inner_iter, fnet, diffopt, cost_net, verbose)
 
                 # The query loss and acc induced by these parameters.
-                qry_logits, _ = fnet(x_qry[i]).detach()
+                qry_logits = fnet(x_qry[i], cost=False).detach()
                 qry_loss = F.cross_entropy(
                     qry_logits, y_qry[i], reduction='none')
                 qry_losses.append(qry_loss.detach())

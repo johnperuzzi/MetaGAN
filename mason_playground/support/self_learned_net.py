@@ -29,9 +29,9 @@ class SelfLearnedNet(nn.Module):
             Flatten(),
             nn.Linear(64, n_way)).to(device)
 
-    def forward(self, x):
+    def forward(self, x, cost=True):
         shared_rep = self.shared_net(x)
         nway_logits = self.nway_net(shared_rep)
 
-        return nway_logits, shared_rep
+        return nway_logits, shared_rep if cost else nway_logits
         
