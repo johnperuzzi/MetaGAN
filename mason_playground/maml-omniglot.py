@@ -134,6 +134,8 @@ def main():
     writer['writer'].close()
 
 def run_inner(x, y, n_inner_iter, fnet, diffopt, cost_net, verbose):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     learned_costs = []
     spt_losses = []
     for _ in range(n_inner_iter):
@@ -143,8 +145,8 @@ def run_inner(x, y, n_inner_iter, fnet, diffopt, cost_net, verbose):
         shared_activations = Flatten()(shared_activations)
         gen_activations = Flatten()(gen_activations)
 
-        shared_activations = torch.cat([shared_activations, torch.ones(shared_activations.size()[0], 1)], dim=-1)
-        gen_activations = torch.cat([gen_activations, torch.zeros(gen_activations.size()[0], 1)], dim=-1)
+        shared_activations = torch.cat([shared_activations, torch.ones(shared_activations.size()[0], 1, device=device)], dim=-1)
+        gen_activations = torch.cat([gen_activations, torch.zeros(gen_activations.size()[0], 1, device=device)], dim=-1)
 
 
         learned_cost = cost_net(shared_activations) + cost_net(gen_activations)

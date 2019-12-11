@@ -33,6 +33,7 @@ class SelfLearnedNet(nn.Module):
 
 
         # generator code
+        self.device = device
         self.rand_hw_out = 7
         self.rand_ch_out = 64
         self.gen_net = []
@@ -51,7 +52,7 @@ class SelfLearnedNet(nn.Module):
 
 
     def gen(self, num):
-        latent_rep = torch.randn(num, self.latent_dim, requires_grad=True)
+        latent_rep = torch.randn(num, self.latent_dim, requires_grad=True, device=self.device)
         x = self.random_proj(latent_rep)
         x = F.relu(x, inplace=True)
         x = x.view(num, self.rand_ch_out, self.rand_hw_out, self.rand_hw_out)
