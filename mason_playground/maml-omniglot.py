@@ -106,15 +106,15 @@ def main():
     cost_net = nn.Sequential( # removed flatten
             nn.Linear(64*3*3 + 1, 256), # plus one for the concat of 0/1
             nn.BatchNorm1d(256, momentum=1, affine=True),
-            nn.ReLU(inplace=True),
+            nn.LeakyReLU(inplace=True),
 
             nn.Linear(256, 128),
             nn.BatchNorm1d(128, momentum=1, affine=True),
-            nn.ReLU(inplace=True),
+            nn.LeakyReLU(inplace=True),
 
             nn.Linear(128, 128),
             nn.BatchNorm1d(128, momentum=1, affine=True),
-            nn.ReLU(inplace=True),
+            nn.LeakyReLU(inplace=True),
 
             nn.Linear(128, 1),
             # nn.BatchNorm1d(1, momentum=1, affine=True)
@@ -315,7 +315,7 @@ def plot(log, args):
     ax.set_ylim(70, 100)
     fig.legend(ncol=2, loc='lower right')
     fig.tight_layout()
-    fname = 'maml-accs_nway_' + str(args.n_way) + "_k_shot_" + str(args.k_spt) + "_k_qry_" + str(args.k_qry) + "_with_generator_more_complex_relu_cost" +'.png' 
+    fname = 'maml-accs_nway_' + str(args.n_way) + "_k_shot_" + str(args.k_spt) + "_k_qry_" + str(args.k_qry) + "_with_generator_more_complex_leaky_relu_cost" +'.png' 
     print(f'--- Plotting accuracy to {fname}')
     fig.savefig(fname)
     plt.close(fig)
