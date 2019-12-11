@@ -101,7 +101,7 @@ def main():
     #     Flatten(),
     #     nn.Linear(64, args.n_way)).to(device)
 
-    net = SelfLearnedNet(args.n_way, device)
+    net = SelfLearnedNet(args.n_way, device).to(device)
 
     cost_net = nn.Sequential( # removed flatten
             nn.Linear(64*3*3 + 1, 128), # plus one for the concat of 0/1
@@ -310,7 +310,7 @@ def plot(log, args):
     ax.set_ylim(70, 100)
     fig.legend(ncol=2, loc='lower right')
     fig.tight_layout()
-    fname = 'maml-accs_nway_' + str(args.n_way) + "_k_shot_" + str(args.k_spt) + "_k_qry_" + str(args.k_qry)+ '.png' 
+    fname = 'maml-accs_nway_' + str(args.n_way) + "_k_shot_" + str(args.k_spt) + "_k_qry_" + str(args.k_qry) + "_with_generator_" +'.png' 
     print(f'--- Plotting accuracy to {fname}')
     fig.savefig(fname)
     plt.close(fig)
