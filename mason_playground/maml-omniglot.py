@@ -103,9 +103,8 @@ def main():
 
     net = SelfLearnedNet(args.n_way, device)
 
-    cost_net = nn.Sequential(
-            Flatten(),
-            nn.Linear(64*3*3, 128),
+    cost_net = nn.Sequential( # removed flatten
+            nn.Linear(64*3*3 + 1, 128), # plus one for the concat of 0/1
             nn.BatchNorm1d(128, momentum=1, affine=True),
             nn.LeakyReLU(inplace=True),
             # nn.Linear(128, 64), 
@@ -138,8 +137,15 @@ def run_inner(x, y, n_inner_iter, fnet, diffopt, cost_net, verbose):
     learned_costs = []
     spt_losses = []
     for _ in range(n_inner_iter):
-        spt_logits, shared_activations = fnet(x)
+        spt_logits, shared_activations, gen_activations = fnet(x)
         spt_loss = F.cross_entropy(spt_logits, y)
+
+        shared_activations = Flatten()(shared_activations)
+        gen_activations = Flatten()(gen_activations)
+
+        shared_activations = torch.cat([shared_activations, torch.ones(shared_activations.size()[0], 1)], dim=-1)
+        gen_activations = torch.cat([gen_activations, torch.zeros(gen_activations.size()[0], 1)], dim=-1)
+
 
         learned_cost = cost_net(shared_activations)
         learned_cost = torch.mean(learned_cost)
