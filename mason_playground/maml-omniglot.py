@@ -147,8 +147,8 @@ def run_inner(x, y, n_inner_iter, fnet, diffopt, cost_net, verbose):
         gen_activations = torch.cat([gen_activations, torch.zeros(gen_activations.size()[0], 1)], dim=-1)
 
 
-        learned_cost = cost_net(shared_activations)
-        learned_cost = torch.mean(learned_cost)
+        learned_cost = cost_net(shared_activations) + cost_net(gen_activations)
+        learned_cost = torch.mean(learned_cost) / 2
 
         tot_loss = spt_loss + learned_cost
 
