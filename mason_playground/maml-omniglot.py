@@ -101,24 +101,47 @@ def main():
 
     net = SelfLearnedNet(args.n_way, device)
 
+    cost_net = nn.Sequential(
+            Flatten(),
+            nn.Linear(64*3*3, 128),
+            nn.BatchNorm1d(128, momentum=1, affine=True),
+            nn.LeakyReLU(inplace=True),
+            # nn.Linear(128, 64), 
+            # nn.BatchNorm1d(64, momentum=1, affine=True),
+            # nn.LeakyReLU(inplace=True),
+            nn.Linear(128, 32),
+            nn.BatchNorm1d(32, momentum=1, affine=True),
+            nn.LeakyReLU(inplace=True),
+            nn.Linear(32, 1),
+            # nn.BatchNorm1d(1, momentum=1, affine=True)
+            ).to(device)
+            # maybe add batch norm to end to keep around 1?
+
     # We will use Adam to (meta-)optimize the initial parameters
     # to be adapted.
-    meta_opt = optim.Adam(net.parameters(), lr=1e-3)
+    meta_opt = optim.Adam([{'params' : net.parameters()},
+                        {'params' : cost_net.parameters()}], lr=1e-3)
 
     log = []
     for epoch in range(100):
-        train(db, net, device, meta_opt, epoch, log)
-        test(db, net, device, epoch, log)
+        train(db, net, cost_net, device, meta_opt, epoch, log)
+        test(db, net, cost_net, device, epoch, log)
         plot(log, args)
 
-def run_inner(x, y, n_inner_iter, fnet, diffopt):
+def run_inner(x, y, n_inner_iter, fnet, diffopt, cost_net):
     for _ in range(n_inner_iter):
-        spt_logits, learned_cost = fnet(x)
+        spt_logits, shared_activations = fnet(x)
         spt_loss = F.cross_entropy(spt_logits, y)
-        tot_loss = spt_loss + torch.mean(learned_cost)
+
+        learned_cost = cost_net(shared_activations)
+        learned_cost = torch.mean(learned_cost)
+
+        tot_loss = spt_loss + learned_cost
+
+        print(spt_loss.data, learned_cost.data)
         diffopt.step(tot_loss)
 
-def train(db, net, device, meta_opt, epoch, log):
+def train(db, net, cost_net, device, meta_opt, epoch, log):
     net.train()
     n_train_iter = db.x_train.shape[0] // db.batchsz
 
@@ -142,6 +165,7 @@ def train(db, net, device, meta_opt, epoch, log):
         qry_accs = []
         meta_opt.zero_grad()
         for i in range(task_num):
+            print("task: " + str(i))
             with higher.innerloop_ctx(
                 net, inner_opt, copy_initial_weights=False
             ) as (fnet, diffopt):
@@ -150,12 +174,12 @@ def train(db, net, device, meta_opt, epoch, log):
                 # This adapts the model's meta-parameters to the task.
                 # higher is able to automatically keep copies of
                 # your network's parameters as they are being updated.
-                run_inner(x_spt[i], y_spt[i], n_inner_iter, fnet, diffopt)
+                run_inner(x_spt[i], y_spt[i], n_inner_iter, fnet, diffopt, cost_net)
 
                 # The final set of adapted parameters will induce some
                 # final loss and accuracy on the query dataset.
                 # These will be used to update the model's meta-parameters.
-                qry_logits = fnet(x_qry[i], cost=False) # dont use learned cost in outer loop
+                qry_logits, _ = fnet(x_qry[i]) # dont use learned cost in outer loop
                 qry_loss = F.cross_entropy(qry_logits, y_qry[i])
                 qry_losses.append(qry_loss.detach())
                 qry_acc = (qry_logits.argmax(
@@ -186,7 +210,7 @@ def train(db, net, device, meta_opt, epoch, log):
         })
 
 
-def test(db, net, device, epoch, log):
+def test(db, net, cost_net, device, epoch, log):
     # Crucially in our testing procedure here, we do *not* fine-tune
     # the model during testing for simplicity.
     # Most research papers using MAML for this task do an extra
@@ -215,10 +239,10 @@ def test(db, net, device, epoch, log):
                 # Optimize the likelihood of the support set by taking
                 # gradient steps w.r.t. the model's parameters.
                 # This adapts the model's meta-parameters to the task.
-                run_inner(x_spt[i], y_spt[i], n_inner_iter, fnet, diffopt)
+                run_inner(x_spt[i], y_spt[i], n_inner_iter, fnet, diffopt, cost_net)
 
                 # The query loss and acc induced by these parameters.
-                qry_logits = fnet(x_qry[i], cost=False).detach()
+                qry_logits, _ = fnet(x_qry[i], cost=False).detach()
                 qry_loss = F.cross_entropy(
                     qry_logits, y_qry[i], reduction='none')
                 qry_losses.append(qry_loss.detach())

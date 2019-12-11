@@ -29,27 +29,9 @@ class SelfLearnedNet(nn.Module):
             Flatten(),
             nn.Linear(64, n_way)).to(device)
 
-        self.cost_net = nn.Sequential(
-            Flatten(),
-            nn.Linear(64*3*3, 128),
-            nn.BatchNorm1d(128, momentum=1, affine=True),
-            nn.LeakyReLU(inplace=True),
-            # nn.Linear(128, 64), 
-            # nn.BatchNorm1d(64, momentum=1, affine=True),
-            # nn.LeakyReLU(inplace=True),
-            nn.Linear(128, 32),
-            nn.BatchNorm1d(32, momentum=1, affine=True),
-            nn.LeakyReLU(inplace=True),
-            nn.Linear(32, 1),
-            nn.BatchNorm1d(1, momentum=1, affine=True)).to(device)
-            # maybe add batch norm to end to keep around 1?
-
-    def forward(self, x, cost=True):
+    def forward(self, x):
         shared_rep = self.shared_net(x)
         nway_logits = self.nway_net(shared_rep)
-        if not cost:
-            return nway_logits
 
-        learned_cost = self.cost_net(shared_rep)
-        return nway_logits, learned_cost
+        return nway_logits, shared_rep
         
