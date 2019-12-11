@@ -33,5 +33,5 @@ class SelfLearnedNet(nn.Module):
         shared_rep = self.shared_net(x)
         nway_logits = self.nway_net(shared_rep)
 
-        return nway_logits, shared_rep if cost else nway_logits
+        return (nway_logits, shared_rep) if cost else nway_logits
         
